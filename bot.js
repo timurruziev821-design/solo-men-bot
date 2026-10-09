@@ -1,6 +1,19 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
+const http = require('http');
 
+// =========================
+// МИНИ ВЕБ-СЕРВЕР (чтобы Render не убивал бота)
+// =========================
+
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Solo_Men Studios Bot is running!');
+}).listen(PORT, () => {
+    console.log('Веб-сервер запущен на порту ' + PORT);
+});
 const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = 8447147405;
 
