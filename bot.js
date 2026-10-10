@@ -1,9 +1,10 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 
 // =========================
-// МИНИ ВЕБ-СЕРВЕР (для Render)
+// МИНИ ВЕБ-СЕРВЕР
 // =========================
 
 const PORT = process.env.PORT || 3000;
@@ -20,65 +21,128 @@ http.createServer((req, res) => {
 // =========================
 
 const TOKEN = process.env.BOT_TOKEN;
+const CRYPTOBOT_TOKEN = process.env.CRYPTOBOT_TOKEN;
 const ADMIN_ID = 8447147405;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
-
 console.log('Solo_Men Studios Bot запущен!');
 
 // =========================
-// ФАЙЛЫ БАЗЫ
+// ФАЙЛЫ
 // =========================
 
 const USERS_FILE = 'users.json';
 const PROMOS_FILE = 'promos.json';
 const APPS_FILE = 'applications.json';
+const REFS_FILE = 'referrals.json';
 
 function loadJson(file) {
     try {
         if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch (e) { console.log('Ошибка загрузки ' + file + ':', e.message); }
+    } catch (e) { console.log('Ошибка ' + file + ':', e.message); }
     return null;
 }
 
 function saveJson(file, data) {
     try {
         fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    } catch (e) { console.log('Ошибка сохранения ' + file + ':', e.message); }
+    } catch (e) { console.log('Ошибка ' + file + ':', e.message); }
 }
-
-// =========================
-// БАЗА ПОЛЬЗОВАТЕЛЕЙ
-// =========================
 
 function loadUsers() { return loadJson(USERS_FILE) || []; }
 function saveUsers(u) { saveJson(USERS_FILE, u); }
-
 function addUser(chatId) {
     const users = loadUsers();
     if (!users.includes(chatId)) {
         users.push(chatId);
         saveUsers(users);
-        console.log('Новый пользователь: ' + chatId + '. Всего: ' + users.length);
+        console.log('+Юзер ' + chatId + '. Всего: ' + users.length);
     }
 }
 
-// =========================
-// БАЗА ПРОМОКОДОВ
-// =========================
-
 function loadPromos() { return loadJson(PROMOS_FILE) || {}; }
 function savePromos(p) { saveJson(PROMOS_FILE, p); }
-
-// =========================
-// БАЗА ЗАЯВОК
-// =========================
-
 function loadApps() { return loadJson(APPS_FILE) || []; }
 function saveApps(a) { saveJson(APPS_FILE, a); }
+function loadRefs() { return loadJson(REFS_FILE) || {}; }
+function saveRefs(r) { saveJson(REFS_FILE, r); }
 
 // =========================
-// ГЛАВНОЕ МЕНЮ
+// CRYPTOBOT — ОПЛАТА
+// =========================
+
+function cryptoRequest(method, data) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(data);
+        const req = https.request({
+            hostname: 'pay.crypt.bot',
+            path: '/api/' + method,
+            method: 'POST',
+            headers: {
+                'Crypto-Pay-API-Token': CRYPTOBOT_TOKEN,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            }
+        }, (res) => {
+            let response = '';
+            res.on('data', chunk => response += chunk);
+            res.on('end', () => {
+                try { resolve(JSON.parse(response)); }
+                catch (e) { reject(e); }
+            });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+async function createInvoice(amount, description) {
+    try {
+        const result = await cryptoRequest('createInvoice', {
+            asset: 'USDT',
+            amount: String(amount),
+            description: description,
+            payload: 'order_' + Date.now(),
+            expires_in: 3600
+        });
+        if (result.ok && result.result) return result.result;
+        console.log('Ошибка счёта:', JSON.stringify(result));
+        return null;
+    } catch (e) {
+        console.log('Ошибка CryptoBot:', e.message);
+        return null;
+    }
+}
+
+const SERVICE_PRICES = {
+    'сайт': 60,
+    'бот': 80,
+    'приложение': 350,
+    'дизайн': 60
+};
+
+function getPriceForService(service) {
+    const s = service.toLowerCase().trim();
+    for (const key in SERVICE_PRICES) {
+        if (s.includes(key)) return SERVICE_PRICES[key];
+    }
+    return 0;
+}
+
+// =========================
+// МЕНЮ КОМАНД
+// =========================
+
+bot.setMyCommands([
+    { command: 'start', description: '🏛 Главное меню' },
+    { command: 'profile', description: '👤 Мой профиль' },
+    { command: 'myref', description: '🔗 Моя реферальная ссылка' },
+    { command: 'cancel', description: '❌ Отменить действие' }
+]);
+
+// =========================
+// МЕНЮ
 // =========================
 
 const mainMenu = {
@@ -89,7 +153,8 @@ const mainMenu = {
             [{ text: 'Прайс-лист' }, { text: 'Портфолио' }],
             [{ text: 'Оставить заявку' }, { text: 'Связаться' }],
             [{ text: 'FAQ' }, { text: 'О студии' }],
-            [{ text: 'Ввести промокод' }]
+            [{ text: 'Ввести промокод' }, { text: '👤 Профиль' }],
+            [{ text: '🔗 Моя реф-ссылка' }]
         ],
         resize_keyboard: true
     }
@@ -108,18 +173,14 @@ const userStates = {};
 // КОМАНДЫ АДМИНА
 // =========================
 
-// /broadcast — рассылка
 bot.onText(/^\/broadcast (.+)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
     const text = match[1];
     const allUsers = loadUsers();
-    if (allUsers.length === 0) { bot.sendMessage(chatId, '❌ Нет пользователей.'); return; }
-
-    await bot.sendMessage(chatId, '📢 Рассылка на ' + allUsers.length + ' чел...');
+    if (allUsers.length === 0) { bot.sendMessage(chatId, '❌ Нет юзеров.'); return; }
+    await bot.sendMessage(chatId, '📢 Рассылка на ' + allUsers.length + '...');
     let sent = 0, failed = 0;
-
     for (const userId of allUsers) {
         try {
             await bot.sendMessage(userId, text);
@@ -127,154 +188,81 @@ bot.onText(/^\/broadcast (.+)$/, async (msg, match) => {
             await new Promise(r => setTimeout(r, 1500));
         } catch (e) { failed++; }
     }
-
-    bot.sendMessage(chatId, '✅ Готово\n📨 Отправлено: ' + sent + '\n❌ Ошибок: ' + failed);
+    bot.sendMessage(chatId, '✅ Отправлено: ' + sent + '\n❌ Ошибок: ' + failed);
 });
 
-// /stats — статистика
 bot.onText(/^\/stats$/, (msg) => {
     const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌'); return; }
     const users = loadUsers();
     const apps = loadApps();
     const promos = loadPromos();
-
-    const newApps = apps.filter(a => a.status === 'new').length;
-    const workApps = apps.filter(a => a.status === 'work').length;
-    const doneApps = apps.filter(a => a.status === 'done').length;
-
+    const n = apps.filter(a => a.status === 'new').length;
+    const w = apps.filter(a => a.status === 'work').length;
+    const d = apps.filter(a => a.status === 'done').length;
     bot.sendMessage(chatId,
-        '📊 СТАТИСТИКА SOLO_MEN STUDIOS\n\n' +
+        '📊 СТАТИСТИКА\n\n' +
         '👥 Пользователей: ' + users.length + '\n' +
-        '📋 Всего заявок: ' + apps.length + '\n' +
-        '   🆕 Новых: ' + newApps + '\n' +
-        '   🔨 В работе: ' + workApps + '\n' +
-        '   ✅ Выполнено: ' + doneApps + '\n\n' +
-        '🎁 Промокодов: ' + Object.keys(promos).length + '\n' +
-        '📅 ' + new Date().toLocaleDateString('ru-RU')
+        '📋 Заявок: ' + apps.length + '\n' +
+        '   🆕 ' + n + ' | 🔨 ' + w + ' | ✅ ' + d + '\n\n' +
+        '🎁 Промокодов: ' + Object.keys(promos).length
     );
 });
 
-// /newpromo КОД СКИДКА — создать промокод
 bot.onText(/^\/newpromo (\S+) (\d+)$/, (msg, match) => {
     const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌'); return; }
     const code = match[1].toUpperCase();
     const discount = parseInt(match[2]);
-
-    if (discount < 1 || discount > 100) {
-        bot.sendMessage(chatId, '❌ Скидка должна быть от 1 до 100.');
-        return;
-    }
-
+    if (discount < 1 || discount > 100) { bot.sendMessage(chatId, '❌ 1-100'); return; }
     const promos = loadPromos();
-    if (promos[code]) {
-        bot.sendMessage(chatId, '❌ Промокод ' + code + ' уже существует.');
-        return;
-    }
-
-    promos[code] = {
-        discount: discount,
-        created: new Date().toISOString(),
-        uses: 0,
-        active: true
-    };
+    if (promos[code]) { bot.sendMessage(chatId, '❌ Уже есть.'); return; }
+    promos[code] = { discount, created: new Date().toISOString(), uses: 0, active: true };
     savePromos(promos);
-
-    bot.sendMessage(chatId,
-        '✅ ПРОМОКОД СОЗДАН\n\n' +
-        '🎁 Код: ' + code + '\n' +
-        '💰 Скидка: ' + discount + '%\n' +
-        '📅 ' + new Date().toLocaleDateString('ru-RU')
-    );
+    bot.sendMessage(chatId, '✅ Промокод ' + code + ' — ' + discount + '%');
 });
 
-// /delpromo КОД — удалить промокод
 bot.onText(/^\/delpromo (\S+)$/, (msg, match) => {
     const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌'); return; }
     const code = match[1].toUpperCase();
     const promos = loadPromos();
-
-    if (!promos[code]) {
-        bot.sendMessage(chatId, '❌ Промокод ' + code + ' не найден.');
-        return;
-    }
-
+    if (!promos[code]) { bot.sendMessage(chatId, '❌ Не найден.'); return; }
     delete promos[code];
     savePromos(promos);
-    bot.sendMessage(chatId, '✅ Промокод ' + code + ' удалён.');
+    bot.sendMessage(chatId, '✅ Удалён ' + code);
 });
 
-// /promos — список промокодов
 bot.onText(/^\/promos$/, (msg) => {
     const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌'); return; }
     const promos = loadPromos();
     const keys = Object.keys(promos);
-
-    if (keys.length === 0) {
-        bot.sendMessage(chatId, '📭 Нет активных промокодов.');
-        return;
-    }
-
-    let text = '🎁 АКТИВНЫЕ ПРОМОКОДЫ\n\n';
-    keys.forEach(code => {
-        const p = promos[code];
-        text += '🔹 ' + code + '\n';
-        text += '   Скидка: ' + p.discount + '%\n';
-        text += '   Использований: ' + p.uses + '\n\n';
-    });
-
+    if (keys.length === 0) { bot.sendMessage(chatId, '📭 Нет.'); return; }
+    let text = '🎁 ПРОМОКОДЫ\n\n';
+    keys.forEach(c => { text += '🔹 ' + c + ' — ' + promos[c].discount + '% (исп: ' + promos[c].uses + ')\n'; });
     bot.sendMessage(chatId, text);
 });
 
-// /admin — панель заявок
-bot.onText(/^\/admin$/, (msg) => {
+bot.onText(/^\/apps$/, (msg) => {
     const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
-
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌'); return; }
     const apps = loadApps();
-    if (apps.length === 0) {
-        bot.sendMessage(chatId, '📭 Пока нет заявок.');
-        return;
-    }
-
-    bot.sendMessage(chatId, '👑 АДМИН-ПАНЕЛЬ\n\nВсего заявок: ' + apps.length + '\nПоказываю последние 5:');
-
-    const last = apps.slice(-5).reverse();
-    last.forEach((app, i) => {
-        const statusEmoji = app.status === 'new' ? '🆕' : (app.status === 'work' ? '🔨' : '✅');
-        const statusText = app.status === 'new' ? 'Новая' : (app.status === 'work' ? 'В работе' : 'Выполнена');
-
-        const text =
-            statusEmoji + ' ЗАЯВКА #' + (apps.length - i) + '\n\n' +
-            '👤 ' + app.name + '\n' +
-            '📱 ' + app.username + '\n' +
-            '🆔 ' + app.userId + '\n\n' +
-            '🛠 ' + app.service + '\n' +
-            '📝 ' + app.desc + '\n' +
-            '💰 ' + app.budget + '\n' +
-            '📞 ' + app.contact + '\n\n' +
-            '📊 Статус: ' + statusText;
-
+    if (apps.length === 0) { bot.sendMessage(chatId, '📭 Нет заявок.'); return; }
+    bot.sendMessage(chatId, '📋 ЗАЯВОК: ' + apps.length);
+    apps.slice().reverse().slice(0, 10).forEach((app) => {
+        const emoji = app.status === 'new' ? '🆕' : (app.status === 'work' ? '🔨' : (app.status === 'paid' ? '💳' : '✅'));
+        const text = emoji + ' #' + app.id + '\n👤 ' + app.name + '\n📱 ' + app.username + '\n🛠 ' + app.service + '\n💰 ' + app.budget + '\n📞 ' + app.contact;
         const keyboard = {
             inline_keyboard: [
                 [
                     { text: '🔨 В работу', callback_data: 'status_work_' + app.id },
                     { text: '✅ Выполнено', callback_data: 'status_done_' + app.id }
                 ],
-                [
-                    { text: '💬 Написать', url: 'https://t.me/' + app.username.replace('@', '') }
-                ]
+                [{ text: '❌ Отклонить', callback_data: 'status_reject_' + app.id }]
             ]
         };
-
-        bot.sendMessage(chatId, text, { reply_markup: keyboard });
+        bot.sendMessage(chatId, text, { reply_markup: keyboard }).catch(() => {});
     });
 });
 
@@ -282,7 +270,6 @@ bot.onText(/^\/admin$/, (msg) => {
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     if (chatId !== ADMIN_ID) return;
-
     const data = query.data;
     const parts = data.split('_');
     const action = parts[0] + '_' + parts[1];
@@ -290,31 +277,51 @@ bot.on('callback_query', async (query) => {
 
     const apps = loadApps();
     const app = apps.find(a => a.id === appId);
-    if (!app) { bot.answerCallbackQuery(query.id, { text: '❌ Заявка не найдена' }); return; }
+    if (!app) { bot.answerCallbackQuery(query.id, { text: '❌ Не найдено' }); return; }
 
     if (action === 'status_work') {
-        app.status = 'work';
-        saveApps(apps);
-        bot.answerCallbackQuery(query.id, { text: '🔨 Заявка в работе' });
-        bot.sendMessage(chatId, '✅ Статус изменён: заявка #' + appId + ' — В РАБОТЕ');
+        app.status = 'work'; saveApps(apps);
+        bot.answerCallbackQuery(query.id, { text: '🔨 В работе' });
+        bot.sendMessage(chatId, '✅ #' + appId + ' → В РАБОТЕ');
+        bot.sendMessage(app.userId, '🔨 Твоя заявка #' + appId + ' принята в работу!').catch(() => {});
     } else if (action === 'status_done') {
-        app.status = 'done';
-        saveApps(apps);
-        bot.answerCallbackQuery(query.id, { text: '✅ Заявка выполнена' });
-        bot.sendMessage(chatId, '✅ Статус изменён: заявка #' + appId + ' — ВЫПОЛНЕНА');
+        app.status = 'done'; saveApps(apps);
+        bot.answerCallbackQuery(query.id, { text: '✅ Выполнено' });
+        bot.sendMessage(chatId, '✅ #' + appId + ' → ВЫПОЛНЕНО');
+        bot.sendMessage(app.userId, '✅ Твоя заявка #' + appId + ' выполнена! Спасибо!').catch(() => {});
+    } else if (action === 'status_reject') {
+        app.status = 'rejected'; saveApps(apps);
+        bot.answerCallbackQuery(query.id, { text: '❌ Отклонено' });
+        bot.sendMessage(chatId, '❌ #' + appId + ' → ОТКЛОНЕНО');
     }
-});
-
-// =========================
-// /start
+});// =========================
+// /start с реферальной ссылкой
 // =========================
 
-bot.onText(/^\/start$/, (msg) => {
+bot.onText(/^\/start(.*)$/, (msg, match) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name || 'друг';
+    const param = (match[1] || '').trim();
 
     addUser(chatId);
     delete userStates[chatId];
+
+    if (param && param.startsWith('ref_')) {
+        const referrerId = param.replace('ref_', '');
+        if (referrerId !== String(msg.from.id)) {
+            const refs = loadRefs();
+            const ref = refs[referrerId] || { code: param, invited: [] };
+            if (!ref.invited.includes(msg.from.id)) {
+                ref.invited.push(msg.from.id);
+                refs[referrerId] = ref;
+                saveRefs(refs);
+                bot.sendMessage(referrerId,
+                    '🎉 ПО ТВОЕЙ ССЫЛКЕ ПРИШЁЛ ДРУГ!\n\n👤 ID: ' + msg.from.id + '\n💰 Скидка 5% на следующий заказ!\n👥 Всего: ' + ref.invited.length
+                ).catch(() => {});
+                bot.sendMessage(chatId, '🎁 Ты пришёл по реферальной ссылке! Скидка 5% на первый заказ.');
+            }
+        }
+    }
 
     const text =
         '🏛 Solo_Men Studios\n\n' +
@@ -327,6 +334,82 @@ bot.onText(/^\/start$/, (msg) => {
 });
 
 // =========================
+// /profile
+// =========================
+
+bot.onText(/^\/profile$/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const name = msg.from.first_name || 'Не указано';
+    const username = msg.from.username ? '@' + msg.from.username : 'без username';
+
+    const apps = loadApps().filter(a => a.userId === userId);
+    const refs = loadRefs();
+    const myRef = refs[userId] || { code: 'ref_' + userId, invited: [] };
+    if (!refs[userId]) { refs[userId] = myRef; saveRefs(refs); }
+
+    const newA = apps.filter(a => a.status === 'new').length;
+    const workA = apps.filter(a => a.status === 'work').length;
+    const doneA = apps.filter(a => a.status === 'done').length;
+
+    bot.sendMessage(chatId,
+        '👤 ТВОЙ ПРОФИЛЬ\n\n' +
+        '📛 ' + name + '\n' +
+        '📱 ' + username + '\n' +
+        '🆔 ' + userId + '\n\n' +
+        '📋 Заявок: ' + apps.length + '\n' +
+        '   🆕 ' + newA + ' | 🔨 ' + workA + ' | ✅ ' + doneA + '\n\n' +
+        '👥 Приглашено: ' + myRef.invited.length + '\n\n' +
+        '🔗 Реф-ссылка:\nt.me/SoloMenStudiosBot?start=' + myRef.code,
+        backMenu
+    );
+});
+
+// =========================
+// /myref
+// =========================
+
+bot.onText(/^\/myref$/, (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const refs = loadRefs();
+    const myRef = refs[userId] || { code: 'ref_' + userId, invited: [] };
+    if (!refs[userId]) { refs[userId] = myRef; saveRefs(refs); }
+
+    bot.sendMessage(chatId,
+        '🔗 ТВОЯ РЕФЕРАЛЬНАЯ ССЫЛКА\n\n' +
+        't.me/SoloMenStudiosBot?start=' + myRef.code + '\n\n' +
+        'Отправь другу. Когда он зайдёт — ты получишь скидку 5%.\n\n' +
+        '👥 Уже приглашено: ' + myRef.invited.length,
+        backMenu
+    );
+});
+
+// Кнопки профиля
+bot.onText(/^👤 Профиль$/, (msg) => {
+    const userId = msg.from.id;
+    const refs = loadRefs();
+    const myRef = refs[userId] || { code: 'ref_' + userId, invited: [] };
+    if (!refs[userId]) { refs[userId] = myRef; saveRefs(refs); }
+    const apps = loadApps().filter(a => a.userId === userId);
+    bot.sendMessage(msg.chat.id,
+        '👤 Профиль\n\n📛 ' + (msg.from.first_name || 'Не указано') + '\n🆔 ' + userId + '\n\n📋 Заявок: ' + apps.length + '\n👥 Приглашено: ' + myRef.invited.length,
+        backMenu
+    );
+});
+
+bot.onText(/^🔗 Моя реф-ссылка$/, (msg) => {
+    const userId = msg.from.id;
+    const refs = loadRefs();
+    const myRef = refs[userId] || { code: 'ref_' + userId, invited: [] };
+    if (!refs[userId]) { refs[userId] = myRef; saveRefs(refs); }
+    bot.sendMessage(msg.chat.id,
+        '🔗 ТВОЯ РЕФ-ССЫЛКА\n\nt.me/SoloMenStudiosBot?start=' + myRef.code + '\n\n👥 Приглашено: ' + myRef.invited.length,
+        backMenu
+    );
+});
+
+// =========================
 // В МЕНЮ
 // =========================
 
@@ -336,13 +419,13 @@ bot.onText(/^В меню$/, (msg) => {
 });
 
 // =========================
-// ПРОМОКОД ОТ КЛИЕНТА
+// ПРОМОКОД
 // =========================
 
 bot.onText(/^Ввести промокод$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'promo' };
-    bot.sendMessage(chatId, '🎁 Введи промокод:\n\nДля отмены напиши /cancel', backMenu);
+    bot.sendMessage(chatId, '🎁 Введи промокод:\n\n/cancel — отмена', backMenu);
 });
 
 // =========================
@@ -350,114 +433,57 @@ bot.onText(/^Ввести промокод$/, (msg) => {
 // =========================
 
 bot.onText(/^Сайты$/, (msg) => {
-    const text =
-        '🌐 РАЗРАБОТКА САЙТОВ\n\n' +
-        'Что делаем:\n' +
-        '• Лендинги\n' +
-        '• Многостраничные сайты\n' +
-        '• Интернет-магазины\n' +
-        '• Корпоративные сайты\n\n' +
-        '💰 Цена: от 5 000 ₽\n' +
-        '⏱ Срок: 3–7 дней\n\n' +
-        'Что входит:\n' +
-        '• Дизайн\n' +
-        '• Вёрстка\n' +
-        '• Адаптация под телефон\n' +
-        '• Хостинг + домен\n' +
-        '• Обучение';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '🌐 РАЗРАБОТКА САЙТОВ\n\n• Лендинги\n• Многостраничные\n• Интернет-магазины\n• Корпоративные\n\n💰 от 5 000 ₽\n⏱ 3–7 дней',
+        backMenu);
 });
 
 bot.onText(/^Боты$/, (msg) => {
-    const text =
-        '🤖 РАЗРАБОТКА БОТОВ\n\n' +
-        'Что делаем:\n' +
-        '• Telegram-боты\n' +
-        '• Discord-боты\n' +
-        '• Боты для магазинов\n' +
-        '• Боты-помощники\n\n' +
-        '💰 Цена: от 7 000 ₽\n' +
-        '⏱ Срок: 5–10 дней';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '🤖 РАЗРАБОТКА БОТОВ\n\n• Telegram\n• Discord\n• Для магазинов\n• Помощники\n\n💰 от 7 000 ₽\n⏱ 5–10 дней',
+        backMenu);
 });
 
 bot.onText(/^Приложения$/, (msg) => {
-    const text =
-        '📱 МОБИЛЬНЫЕ ПРИЛОЖЕНИЯ\n\n' +
-        '• Android-приложения\n' +
-        '• PWA\n' +
-        '• Web-приложения\n\n' +
-        '💰 Цена: от 30 000 ₽\n' +
-        '⏱ Срок: 2–4 недели';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '📱 ПРИЛОЖЕНИЯ\n\n• Android\n• PWA\n• Web\n\n💰 от 30 000 ₽\n⏱ 2–4 недели',
+        backMenu);
 });
 
 bot.onText(/^Дизайн$/, (msg) => {
-    const text =
-        '🎨 ДИЗАЙН\n\n' +
-        '• Логотипы\n' +
-        '• Баннеры\n' +
-        '• Обложки\n' +
-        '• Презентации\n\n' +
-        '💰 Цена: от 5 000 ₽\n' +
-        '⏱ Срок: 1–5 дней';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '🎨 ДИЗАЙН\n\n• Логотипы\n• Баннеры\n• Обложки\n• Презентации\n\n💰 от 5 000 ₽\n⏱ 1–5 дней',
+        backMenu);
 });
 
 bot.onText(/^Прайс-лист$/, (msg) => {
-    const text =
-        '💰 ПРАЙС-ЛИСТ SOLO_MEN STUDIOS\n\n' +
-        '🌐 Сайты — от 5 000 ₽\n' +
-        '🤖 Боты — от 7 000 ₽\n' +
-        '📱 Приложения — от 30 000 ₽\n' +
-        '🎨 Дизайн — от 5 000 ₽\n\n' +
-        '💳 Оплата: USDT / TON\n' +
-        'Предоплата — 50%.';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '💰 ПРАЙС-ЛИСТ\n\n🌐 Сайты — от 5 000 ₽\n🤖 Боты — от 7 000 ₽\n📱 Приложения — от 30 000 ₽\n🎨 Дизайн — от 5 000 ₽\n\n💳 USDT / TON\nПредоплата 50%',
+        backMenu);
 });
 
 bot.onText(/^Портфолио$/, (msg) => {
-    const text =
-        '💼 НАШИ РАБОТЫ\n\n' +
-        '📱 Solo_Men Messenger\n' +
-        'solomessenger.netlify.app\n\n' +
-        '🏛 Solo_Men Studios\n' +
-        'sozdaniesaitovbotovbtdsolomen.netlify.app\n\n' +
-        '🪙 BobraCoin\n' +
-        'Мем-коин на Solana';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '💼 НАШИ РАБОТЫ\n\n📱 Solo_Men Messenger\nsolomessenger.netlify.app\n\n🏛 Solo_Men Studios\nsozdaniesaitovbotovbtdsolomen.netlify.app\n\n🪙 BobraCoin',
+        backMenu);
 });
 
 bot.onText(/^Связаться$/, (msg) => {
-    const text =
-        '📞 СВЯЗАТЬСЯ С НАМИ\n\n' +
-        '👤 Основатель: @Elohimon\n' +
-        '👤 Менеджер: @K_S_1430\n\n' +
-        '📧 Email: bobratoken@gmail.com\n' +
-        '📢 Канал: @BobraCoin';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '📞 СВЯЗАТЬСЯ\n\n👤 @Elohimon\n👤 @K_S_1430\n\n📧 bobratoken@gmail.com\n📢 @BobraCoin',
+        backMenu);
 });
 
 bot.onText(/^FAQ$/, (msg) => {
-    const text =
-        '❓ ЧАСТЫЕ ВОПРОСЫ\n\n' +
-        '💰 Сколько стоит?\n' +
-        'Сайт от 5к, бот от 7к, приложение от 30к.\n\n' +
-        '⏱ Как быстро?\n' +
-        'Сайт 3–7 дней. Бот 5–10 дней.\n\n' +
-        '💳 Как оплатить?\n' +
-        'USDT или TON. Предоплата — 50%.';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '❓ FAQ\n\n💰 Сайт от 5к, бот от 7к, приложение от 30к.\n⏱ Сайт 3-7 дней, бот 5-10 дней.\n💳 USDT/TON, предоплата 50%.',
+        backMenu);
 });
 
 bot.onText(/^О студии$/, (msg) => {
-    const text =
-        '🏛 SOLO_MEN STUDIOS\n\n' +
-        'Молодая студия разработки из Дагестана.\n\n' +
-        'Основатель: Тимур (Solo_Men).\n\n' +
-        'Создаём: сайты, Telegram-ботов, приложения, дизайн.\n\n' +
-        '✨ Делаем технологии красиво.';
-    bot.sendMessage(msg.chat.id, text, backMenu);
+    bot.sendMessage(msg.chat.id,
+        '🏛 SOLO_MEN STUDIOS\n\nСтудия разработки из Дагестана.\n\nОснователь: Тимур (Solo_Men).\n\n✨ Делаем технологии красиво.',
+        backMenu);
 });
 
 // =========================
@@ -467,13 +493,7 @@ bot.onText(/^О студии$/, (msg) => {
 bot.onText(/^Оставить заявку$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'service' };
-
-    bot.sendMessage(chatId,
-        '📋 ОФОРМЛЕНИЕ ЗАЯВКИ\n\n' +
-        'Шаг 1 из 4.\n\n' +
-        'Что нужно сделать? Напиши: сайт, бот, приложение или дизайн\n\n' +
-        'Для отмены напиши /cancel'
-    );
+    bot.sendMessage(chatId, '📋 ЗАЯВКА\n\nШаг 1 из 4.\n\nЧто нужно: сайт, бот, приложение, дизайн?\n\n/cancel — отмена');
 });
 
 bot.onText(/^\/cancel$/, (msg) => {
@@ -493,115 +513,99 @@ bot.onText(/^\/cancel$/, (msg) => {
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
-
     if (!text || text.startsWith('/')) return;
     if (!userStates[chatId]) return;
-
     const state = userStates[chatId];
 
-    // ===== ПРОМОКОД =====
     if (state.step === 'promo') {
         const code = text.toUpperCase();
         const promos = loadPromos();
-
         if (promos[code] && promos[code].active) {
             promos[code].uses++;
             savePromos(promos);
-
-            bot.sendMessage(chatId,
-                '🎉 ПРОМОКОД АКТИВИРОВАН!\n\n' +
-                '🎁 Код: ' + code + '\n' +
-                '💰 Скидка: ' + promos[code].discount + '%\n\n' +
-                'Скидка будет применена к твоему заказу.',
-                mainMenu
-            );
+            bot.sendMessage(chatId, '🎉 ПРОМОКОД АКТИВИРОВАН!\n\n🎁 ' + code + '\n💰 Скидка: ' + promos[code].discount + '%', mainMenu);
         } else {
-            bot.sendMessage(chatId, '❌ Промокод не найден или неактивен.', mainMenu);
+            bot.sendMessage(chatId, '❌ Промокод не найден.', mainMenu);
         }
         delete userStates[chatId];
         return;
     }
 
-    // ===== ЗАЯВКА =====
     if (state.step === 'service') {
-        state.service = text;
-        state.step = 'desc';
-        await bot.sendMessage(chatId,
-            '✅ Отлично!\n\nШаг 2 из 4.\n\n' +
-            'Опиши подробнее, что нужно сделать:'
-        );
+        state.service = text; state.step = 'desc';
+        bot.sendMessage(chatId, '✅ Шаг 2 из 4.\n\nОпиши подробнее:');
         return;
     }
-
     if (state.step === 'desc') {
-        state.desc = text;
-        state.step = 'budget';
-        await bot.sendMessage(chatId,
-            '✅ Записал.\n\nШаг 3 из 4.\n\n' +
-            'Какой примерный бюджет?\n\n' +
-            '• до 10 000\n• 10 000–30 000\n• 30 000–50 000\n• более 50 000\n• не знаю'
-        );
+        state.desc = text; state.step = 'budget';
+        bot.sendMessage(chatId, '✅ Шаг 3 из 4.\n\nБюджет?\n\n• до 10 000\n• 10 000–30 000\n• 30 000–50 000\n• более 50 000\n• не знаю');
         return;
     }
-
     if (state.step === 'budget') {
-        state.budget = text;
-        state.step = 'contact';
-        await bot.sendMessage(chatId,
-            '✅ Понял.\n\nШаг 4 из 4.\n\n' +
-            'Оставь контакт для связи (Telegram или телефон):'
-        );
+        state.budget = text; state.step = 'contact';
+        bot.sendMessage(chatId, '✅ Шаг 4 из 4.\n\nКонтакт (Telegram или телефон):');
         return;
     }
-
     if (state.step === 'contact') {
         state.contact = text;
-
         const appId = Date.now().toString().slice(-6);
         const fromName = msg.from.first_name || 'Не указано';
         const fromUsername = msg.from.username ? '@' + msg.from.username : 'без username';
 
         const apps = loadApps();
         apps.push({
-            id: appId,
-            userId: msg.from.id,
-            name: fromName,
-            username: fromUsername,
-            service: state.service,
-            desc: state.desc,
-            budget: state.budget,
-            contact: state.contact,
-            status: 'new',
-            created: new Date().toISOString()
+            id: appId, userId: msg.from.id, name: fromName, username: fromUsername,
+            service: state.service, desc: state.desc, budget: state.budget,
+            contact: state.contact, status: 'new', created: new Date().toISOString()
         });
         saveApps(apps);
 
         const adminText =
             '🔥 НОВАЯ ЗАЯВКА #' + appId + '\n\n' +
-            '👤 ' + fromName + '\n' +
-            '📱 ' + fromUsername + '\n' +
-            '🆔 ' + msg.from.id + '\n\n' +
-            '🛠 ' + state.service + '\n' +
-            '📝 ' + state.desc + '\n' +
-            '💰 ' + state.budget + '\n' +
-            '📞 ' + state.contact;
+            '👤 ' + fromName + '\n📱 ' + fromUsername + '\n🆔 ' + msg.from.id + '\n\n' +
+            '🛠 ' + state.service + '\n📝 ' + state.desc + '\n💰 ' + state.budget + '\n📞 ' + state.contact;
 
         const keyboard = {
             inline_keyboard: [
-                [{ text: '🔨 В работу', callback_data: 'status_work_' + appId }],
-                [{ text: '✅ Выполнено', callback_data: 'status_done_' + appId }],
-                [{ text: '💬 Написать', url: 'https://t.me/' + (msg.from.username || '') }]
+                [
+                    { text: '🔨 В работу', callback_data: 'status_work_' + appId },
+                    { text: '✅ Выполнено', callback_data: 'status_done_' + appId }
+                ],
+                [{ text: '❌ Отклонить', callback_data: 'status_reject_' + appId }]
             ]
         };
 
         try {
             await bot.sendMessage(ADMIN_ID, adminText, { reply_markup: keyboard });
-            await bot.sendMessage(chatId,
-                '🎉 ЗАЯВКА ОТПРАВЛЕНА!\n\n' +
-                'Номер: #' + appId + '\n' +
-                'Мы свяжемся с тобой в ближайшее время.',
-                mainMenu
-            );
+
+            // Оплата
+            const amount = getPriceForService(state.service);
+            if (amount > 0 && CRYPTOBOT_TOKEN) {
+                const invoice = await createInvoice(amount, 'Заявка #' + appId + ' — ' + state.service);
+                if (invoice && invoice.bot_invoice_url) {
+                    await bot.sendMessage(chatId,
+                        '🎉 ЗАЯВКА #' + appId + ' ОТПРАВЛЕНА!\n\n' +
+                        '💳 Оплата: ' + amount + ' USDT\n\n' +
+                        'Нажми кнопку чтобы оплатить:',
+                        {
+                            reply_markup: {
+                                inline_keyboard: [[
+                                    { text: '💳 Оплатить ' + amount + ' USDT', url: invoice.bot_invoice_url }
+                                ]]
+                            }
+                        }
+                    );
+                    await bot.sendMessage(chatId, 'Или вернись в меню:', mainMenu);
+                } else {
+                    await bot.sendMessage(chatId,
+                        '🎉 ЗАЯВКА #' + appId + ' ОТПРАВЛЕНА!\n\n💳 Оплата: ' + amount + ' USDT\nМы свяжемся с тобой.',
+                        mainMenu);
+                }
+            } else {
+                await bot.sendMessage(chatId,
+                    '🎉 ЗАЯВКА #' + appId + ' ОТПРАВЛЕНА!\n\nМы свяжемся с тобой.',
+                    mainMenu);
+            }
             delete userStates[chatId];
         } catch (e) {
             console.log('Ошибка:', e.message);
