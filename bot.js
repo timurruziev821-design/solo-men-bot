@@ -3,7 +3,7 @@ const fs = require('fs');
 const http = require('http');
 
 // =========================
-// МИНИ ВЕБ-СЕРВЕР (чтобы Render не убивал бота)
+// МИНИ ВЕБ-СЕРВЕР (для Render)
 // =========================
 
 const PORT = process.env.PORT || 3000;
@@ -14,6 +14,11 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
     console.log('Веб-сервер запущен на порту ' + PORT);
 });
+
+// =========================
+// КОНФИГ
+// =========================
+
 const TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = 8447147405;
 
@@ -22,41 +27,55 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 console.log('Solo_Men Studios Bot запущен!');
 
 // =========================
-// БАЗА ПОЛЬЗОВАТЕЛЕЙ
+// ФАЙЛЫ БАЗЫ
 // =========================
 
 const USERS_FILE = 'users.json';
+const PROMOS_FILE = 'promos.json';
+const APPS_FILE = 'applications.json';
 
-function loadUsers() {
+function loadJson(file) {
     try {
-        if (fs.existsSync(USERS_FILE)) {
-            return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-        }
-    } catch (e) {
-        console.log('Ошибка загрузки users:', e.message);
-    }
-    return [];
+        if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (e) { console.log('Ошибка загрузки ' + file + ':', e.message); }
+    return null;
 }
 
-function saveUsers(usersList) {
+function saveJson(file, data) {
     try {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(usersList, null, 2));
-    } catch (e) {
-        console.log('Ошибка сохранения users:', e.message);
-    }
+        fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    } catch (e) { console.log('Ошибка сохранения ' + file + ':', e.message); }
 }
+
+// =========================
+// БАЗА ПОЛЬЗОВАТЕЛЕЙ
+// =========================
+
+function loadUsers() { return loadJson(USERS_FILE) || []; }
+function saveUsers(u) { saveJson(USERS_FILE, u); }
 
 function addUser(chatId) {
-    const usersList = loadUsers();
-    if (!usersList.includes(chatId)) {
-        usersList.push(chatId);
-        saveUsers(usersList);
-        console.log('Новый пользователь: ' + chatId + '. Всего: ' + usersList.length);
+    const users = loadUsers();
+    if (!users.includes(chatId)) {
+        users.push(chatId);
+        saveUsers(users);
+        console.log('Новый пользователь: ' + chatId + '. Всего: ' + users.length);
     }
 }
 
-let users = loadUsers();
-console.log('Загружено пользователей: ' + users.length);
+// =========================
+// БАЗА ПРОМОКОДОВ
+// =========================
+
+function loadPromos() { return loadJson(PROMOS_FILE) || {}; }
+function savePromos(p) { saveJson(PROMOS_FILE, p); }
+
+// =========================
+// БАЗА ЗАЯВОК
+// =========================
+
+function loadApps() { return loadJson(APPS_FILE) || []; }
+function saveApps(a) { saveJson(APPS_FILE, a); }
 
 // =========================
 // ГЛАВНОЕ МЕНЮ
@@ -69,7 +88,8 @@ const mainMenu = {
             [{ text: 'Приложения' }, { text: 'Дизайн' }],
             [{ text: 'Прайс-лист' }, { text: 'Портфолио' }],
             [{ text: 'Оставить заявку' }, { text: 'Связаться' }],
-            [{ text: 'FAQ' }, { text: 'О студии' }]
+            [{ text: 'FAQ' }, { text: 'О студии' }],
+            [{ text: 'Ввести промокод' }]
         ],
         resize_keyboard: true
     }
@@ -82,68 +102,207 @@ const backMenu = {
     }
 };
 
+const userStates = {};
+
 // =========================
 // КОМАНДЫ АДМИНА
 // =========================
 
+// /broadcast — рассылка
 bot.onText(/^\/broadcast (.+)$/, async (msg, match) => {
     const chatId = msg.chat.id;
-
-    if (chatId !== ADMIN_ID) {
-        bot.sendMessage(chatId, '❌ У тебя нет прав.');
-        return;
-    }
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
 
     const text = match[1];
     const allUsers = loadUsers();
-
-    if (allUsers.length === 0) {
-        bot.sendMessage(chatId, '❌ Нет пользователей.');
-        return;
-    }
+    if (allUsers.length === 0) { bot.sendMessage(chatId, '❌ Нет пользователей.'); return; }
 
     await bot.sendMessage(chatId, '📢 Рассылка на ' + allUsers.length + ' чел...');
-
-    let sent = 0;
-    let failed = 0;
+    let sent = 0, failed = 0;
 
     for (const userId of allUsers) {
         try {
             await bot.sendMessage(userId, text);
             sent++;
             await new Promise(r => setTimeout(r, 1500));
-        } catch (e) {
-            failed++;
-            console.log('Не доставлено ' + userId + ': ' + e.message);
-        }
+        } catch (e) { failed++; }
     }
 
-    bot.sendMessage(
-        chatId,
-        '✅ РАССЫЛКА ГОТОВА\n\n' +
-        '📨 Отправлено: ' + sent + '\n' +
-        '❌ Ошибок: ' + failed + '\n' +
-        '👥 Всего: ' + allUsers.length
+    bot.sendMessage(chatId, '✅ Готово\n📨 Отправлено: ' + sent + '\n❌ Ошибок: ' + failed);
+});
+
+// /stats — статистика
+bot.onText(/^\/stats$/, (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
+
+    const users = loadUsers();
+    const apps = loadApps();
+    const promos = loadPromos();
+
+    const newApps = apps.filter(a => a.status === 'new').length;
+    const workApps = apps.filter(a => a.status === 'work').length;
+    const doneApps = apps.filter(a => a.status === 'done').length;
+
+    bot.sendMessage(chatId,
+        '📊 СТАТИСТИКА SOLO_MEN STUDIOS\n\n' +
+        '👥 Пользователей: ' + users.length + '\n' +
+        '📋 Всего заявок: ' + apps.length + '\n' +
+        '   🆕 Новых: ' + newApps + '\n' +
+        '   🔨 В работе: ' + workApps + '\n' +
+        '   ✅ Выполнено: ' + doneApps + '\n\n' +
+        '🎁 Промокодов: ' + Object.keys(promos).length + '\n' +
+        '📅 ' + new Date().toLocaleDateString('ru-RU')
     );
 });
 
-bot.onText(/^\/stats$/, (msg) => {
+// /newpromo КОД СКИДКА — создать промокод
+bot.onText(/^\/newpromo (\S+) (\d+)$/, (msg, match) => {
     const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
 
-    if (chatId !== ADMIN_ID) {
-        bot.sendMessage(chatId, '❌ У тебя нет прав.');
+    const code = match[1].toUpperCase();
+    const discount = parseInt(match[2]);
+
+    if (discount < 1 || discount > 100) {
+        bot.sendMessage(chatId, '❌ Скидка должна быть от 1 до 100.');
         return;
     }
 
-    const allUsers = loadUsers();
+    const promos = loadPromos();
+    if (promos[code]) {
+        bot.sendMessage(chatId, '❌ Промокод ' + code + ' уже существует.');
+        return;
+    }
 
-    bot.sendMessage(
-        chatId,
-        '📊 СТАТИСТИКА SOLO_MEN STUDIOS\n\n' +
-        '👥 Пользователей: ' + allUsers.length + '\n' +
-        '📅 ' + new Date().toLocaleDateString('ru-RU') + '\n' +
-        '🕐 ' + new Date().toLocaleTimeString('ru-RU')
+    promos[code] = {
+        discount: discount,
+        created: new Date().toISOString(),
+        uses: 0,
+        active: true
+    };
+    savePromos(promos);
+
+    bot.sendMessage(chatId,
+        '✅ ПРОМОКОД СОЗДАН\n\n' +
+        '🎁 Код: ' + code + '\n' +
+        '💰 Скидка: ' + discount + '%\n' +
+        '📅 ' + new Date().toLocaleDateString('ru-RU')
     );
+});
+
+// /delpromo КОД — удалить промокод
+bot.onText(/^\/delpromo (\S+)$/, (msg, match) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
+
+    const code = match[1].toUpperCase();
+    const promos = loadPromos();
+
+    if (!promos[code]) {
+        bot.sendMessage(chatId, '❌ Промокод ' + code + ' не найден.');
+        return;
+    }
+
+    delete promos[code];
+    savePromos(promos);
+    bot.sendMessage(chatId, '✅ Промокод ' + code + ' удалён.');
+});
+
+// /promos — список промокодов
+bot.onText(/^\/promos$/, (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
+
+    const promos = loadPromos();
+    const keys = Object.keys(promos);
+
+    if (keys.length === 0) {
+        bot.sendMessage(chatId, '📭 Нет активных промокодов.');
+        return;
+    }
+
+    let text = '🎁 АКТИВНЫЕ ПРОМОКОДЫ\n\n';
+    keys.forEach(code => {
+        const p = promos[code];
+        text += '🔹 ' + code + '\n';
+        text += '   Скидка: ' + p.discount + '%\n';
+        text += '   Использований: ' + p.uses + '\n\n';
+    });
+
+    bot.sendMessage(chatId, text);
+});
+
+// /admin — панель заявок
+bot.onText(/^\/admin$/, (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId !== ADMIN_ID) { bot.sendMessage(chatId, '❌ Нет прав.'); return; }
+
+    const apps = loadApps();
+    if (apps.length === 0) {
+        bot.sendMessage(chatId, '📭 Пока нет заявок.');
+        return;
+    }
+
+    bot.sendMessage(chatId, '👑 АДМИН-ПАНЕЛЬ\n\nВсего заявок: ' + apps.length + '\nПоказываю последние 5:');
+
+    const last = apps.slice(-5).reverse();
+    last.forEach((app, i) => {
+        const statusEmoji = app.status === 'new' ? '🆕' : (app.status === 'work' ? '🔨' : '✅');
+        const statusText = app.status === 'new' ? 'Новая' : (app.status === 'work' ? 'В работе' : 'Выполнена');
+
+        const text =
+            statusEmoji + ' ЗАЯВКА #' + (apps.length - i) + '\n\n' +
+            '👤 ' + app.name + '\n' +
+            '📱 ' + app.username + '\n' +
+            '🆔 ' + app.userId + '\n\n' +
+            '🛠 ' + app.service + '\n' +
+            '📝 ' + app.desc + '\n' +
+            '💰 ' + app.budget + '\n' +
+            '📞 ' + app.contact + '\n\n' +
+            '📊 Статус: ' + statusText;
+
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    { text: '🔨 В работу', callback_data: 'status_work_' + app.id },
+                    { text: '✅ Выполнено', callback_data: 'status_done_' + app.id }
+                ],
+                [
+                    { text: '💬 Написать', url: 'https://t.me/' + app.username.replace('@', '') }
+                ]
+            ]
+        };
+
+        bot.sendMessage(chatId, text, { reply_markup: keyboard });
+    });
+});
+
+// Обработка кнопок статуса
+bot.on('callback_query', async (query) => {
+    const chatId = query.message.chat.id;
+    if (chatId !== ADMIN_ID) return;
+
+    const data = query.data;
+    const parts = data.split('_');
+    const action = parts[0] + '_' + parts[1];
+    const appId = parts[2];
+
+    const apps = loadApps();
+    const app = apps.find(a => a.id === appId);
+    if (!app) { bot.answerCallbackQuery(query.id, { text: '❌ Заявка не найдена' }); return; }
+
+    if (action === 'status_work') {
+        app.status = 'work';
+        saveApps(apps);
+        bot.answerCallbackQuery(query.id, { text: '🔨 Заявка в работе' });
+        bot.sendMessage(chatId, '✅ Статус изменён: заявка #' + appId + ' — В РАБОТЕ');
+    } else if (action === 'status_done') {
+        app.status = 'done';
+        saveApps(apps);
+        bot.answerCallbackQuery(query.id, { text: '✅ Заявка выполнена' });
+        bot.sendMessage(chatId, '✅ Статус изменён: заявка #' + appId + ' — ВЫПОЛНЕНА');
+    }
 });
 
 // =========================
@@ -155,6 +314,7 @@ bot.onText(/^\/start$/, (msg) => {
     const name = msg.from.first_name || 'друг';
 
     addUser(chatId);
+    delete userStates[chatId];
 
     const text =
         '🏛 Solo_Men Studios\n\n' +
@@ -172,11 +332,21 @@ bot.onText(/^\/start$/, (msg) => {
 
 bot.onText(/^В меню$/, (msg) => {
     delete userStates[msg.chat.id];
-    bot.sendMessage(msg.chat.id, '🏠 Главное меню.\n\nЧто тебя интересует?', mainMenu);
+    bot.sendMessage(msg.chat.id, '🏠 Главное меню.', mainMenu);
 });
 
 // =========================
-// САЙТЫ
+// ПРОМОКОД ОТ КЛИЕНТА
+// =========================
+
+bot.onText(/^Ввести промокод$/, (msg) => {
+    const chatId = msg.chat.id;
+    userStates[chatId] = { step: 'promo' };
+    bot.sendMessage(chatId, '🎁 Введи промокод:\n\nДля отмены напиши /cancel', backMenu);
+});
+
+// =========================
+// РАЗДЕЛЫ
 // =========================
 
 bot.onText(/^Сайты$/, (msg) => {
@@ -195,13 +365,8 @@ bot.onText(/^Сайты$/, (msg) => {
         '• Адаптация под телефон\n' +
         '• Хостинг + домен\n' +
         '• Обучение';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// БОТЫ
-// =========================
 
 bot.onText(/^Боты$/, (msg) => {
     const text =
@@ -213,13 +378,8 @@ bot.onText(/^Боты$/, (msg) => {
         '• Боты-помощники\n\n' +
         '💰 Цена: от 7 000 ₽\n' +
         '⏱ Срок: 5–10 дней';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// ПРИЛОЖЕНИЯ
-// =========================
 
 bot.onText(/^Приложения$/, (msg) => {
     const text =
@@ -229,13 +389,8 @@ bot.onText(/^Приложения$/, (msg) => {
         '• Web-приложения\n\n' +
         '💰 Цена: от 30 000 ₽\n' +
         '⏱ Срок: 2–4 недели';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// ДИЗАЙН
-// =========================
 
 bot.onText(/^Дизайн$/, (msg) => {
     const text =
@@ -246,13 +401,8 @@ bot.onText(/^Дизайн$/, (msg) => {
         '• Презентации\n\n' +
         '💰 Цена: от 5 000 ₽\n' +
         '⏱ Срок: 1–5 дней';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// ПРАЙС
-// =========================
 
 bot.onText(/^Прайс-лист$/, (msg) => {
     const text =
@@ -261,16 +411,10 @@ bot.onText(/^Прайс-лист$/, (msg) => {
         '🤖 Боты — от 7 000 ₽\n' +
         '📱 Приложения — от 30 000 ₽\n' +
         '🎨 Дизайн — от 5 000 ₽\n\n' +
-        '💳 Оплата:\n' +
-        'USDT / TON\n\n' +
+        '💳 Оплата: USDT / TON\n' +
         'Предоплата — 50%.';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// ПОРТФОЛИО
-// =========================
 
 bot.onText(/^Портфолио$/, (msg) => {
     const text =
@@ -281,13 +425,8 @@ bot.onText(/^Портфолио$/, (msg) => {
         'sozdaniesaitovbotovbtdsolomen.netlify.app\n\n' +
         '🪙 BobraCoin\n' +
         'Мем-коин на Solana';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// СВЯЗАТЬСЯ
-// =========================
 
 bot.onText(/^Связаться$/, (msg) => {
     const text =
@@ -296,13 +435,8 @@ bot.onText(/^Связаться$/, (msg) => {
         '👤 Менеджер: @K_S_1430\n\n' +
         '📧 Email: bobratoken@gmail.com\n' +
         '📢 Канал: @BobraCoin';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// FAQ
-// =========================
 
 bot.onText(/^FAQ$/, (msg) => {
     const text =
@@ -310,55 +444,34 @@ bot.onText(/^FAQ$/, (msg) => {
         '💰 Сколько стоит?\n' +
         'Сайт от 5к, бот от 7к, приложение от 30к.\n\n' +
         '⏱ Как быстро?\n' +
-        'Сайт 3–7 дней.\n' +
-        'Бот 5–10 дней.\n\n' +
+        'Сайт 3–7 дней. Бот 5–10 дней.\n\n' +
         '💳 Как оплатить?\n' +
-        'USDT или TON.\n\n' +
-        'Предоплата — 50%.';
-
+        'USDT или TON. Предоплата — 50%.';
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
-
-// =========================
-// О СТУДИИ
-// =========================
 
 bot.onText(/^О студии$/, (msg) => {
     const text =
         '🏛 SOLO_MEN STUDIOS\n\n' +
         'Молодая студия разработки из Дагестана.\n\n' +
         'Основатель: Тимур (Solo_Men).\n\n' +
-        'Создаём:\n' +
-        '• сайты\n' +
-        '• Telegram-ботов\n' +
-        '• приложения\n' +
-        '• дизайн\n\n' +
-        'Стиль — современный Old Money.\n\n' +
+        'Создаём: сайты, Telegram-ботов, приложения, дизайн.\n\n' +
         '✨ Делаем технологии красиво.';
-
     bot.sendMessage(msg.chat.id, text, backMenu);
 });
 
 // =========================
-// СИСТЕМА ЗАЯВОК
+// ЗАЯВКА
 // =========================
-
-const userStates = {};
 
 bot.onText(/^Оставить заявку$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'service' };
 
-    bot.sendMessage(
-        chatId,
+    bot.sendMessage(chatId,
         '📋 ОФОРМЛЕНИЕ ЗАЯВКИ\n\n' +
         'Шаг 1 из 4.\n\n' +
-        'Что нужно сделать?\n\n' +
-        'Напиши:\n' +
-        '• сайт\n' +
-        '• бот\n' +
-        '• приложение\n' +
-        '• дизайн\n\n' +
+        'Что нужно сделать? Напиши: сайт, бот, приложение или дизайн\n\n' +
         'Для отмены напиши /cancel'
     );
 });
@@ -367,36 +480,55 @@ bot.onText(/^\/cancel$/, (msg) => {
     const chatId = msg.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        bot.sendMessage(chatId, '❌ Заявка отменена.', mainMenu);
+        bot.sendMessage(chatId, '❌ Отменено.', mainMenu);
     } else {
-        bot.sendMessage(chatId, 'Сейчас нет активной заявки.', mainMenu);
+        bot.sendMessage(chatId, 'Нет активной заявки.', mainMenu);
     }
 });
 
 // =========================
-// ОБРАБОТКА ЗАЯВКИ
+// ОБРАБОТКА СООБЩЕНИЙ
 // =========================
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    if (!text) return;
-    if (text.startsWith('/')) return;
+    if (!text || text.startsWith('/')) return;
     if (!userStates[chatId]) return;
 
     const state = userStates[chatId];
 
+    // ===== ПРОМОКОД =====
+    if (state.step === 'promo') {
+        const code = text.toUpperCase();
+        const promos = loadPromos();
+
+        if (promos[code] && promos[code].active) {
+            promos[code].uses++;
+            savePromos(promos);
+
+            bot.sendMessage(chatId,
+                '🎉 ПРОМОКОД АКТИВИРОВАН!\n\n' +
+                '🎁 Код: ' + code + '\n' +
+                '💰 Скидка: ' + promos[code].discount + '%\n\n' +
+                'Скидка будет применена к твоему заказу.',
+                mainMenu
+            );
+        } else {
+            bot.sendMessage(chatId, '❌ Промокод не найден или неактивен.', mainMenu);
+        }
+        delete userStates[chatId];
+        return;
+    }
+
+    // ===== ЗАЯВКА =====
     if (state.step === 'service') {
         state.service = text;
         state.step = 'desc';
-        await bot.sendMessage(
-            chatId,
-            '✅ Отлично!\n\n' +
-            'Шаг 2 из 4.\n\n' +
-            'Опиши подробнее, что именно нужно сделать.\n\n' +
-            'Например:\n' +
-            '«Нужен Telegram-бот для магазина одежды»'
+        await bot.sendMessage(chatId,
+            '✅ Отлично!\n\nШаг 2 из 4.\n\n' +
+            'Опиши подробнее, что нужно сделать:'
         );
         return;
     }
@@ -404,17 +536,10 @@ bot.on('message', async (msg) => {
     if (state.step === 'desc') {
         state.desc = text;
         state.step = 'budget';
-        await bot.sendMessage(
-            chatId,
-            '✅ Записал.\n\n' +
-            'Шаг 3 из 4.\n\n' +
-            'Какой примерный бюджет проекта?\n\n' +
-            'Можно написать:\n' +
-            '• до 10 000\n' +
-            '• 10 000–30 000\n' +
-            '• 30 000–50 000\n' +
-            '• более 50 000\n' +
-            '• пока не знаю'
+        await bot.sendMessage(chatId,
+            '✅ Записал.\n\nШаг 3 из 4.\n\n' +
+            'Какой примерный бюджет?\n\n' +
+            '• до 10 000\n• 10 000–30 000\n• 30 000–50 000\n• более 50 000\n• не знаю'
         );
         return;
     }
@@ -422,12 +547,9 @@ bot.on('message', async (msg) => {
     if (state.step === 'budget') {
         state.budget = text;
         state.step = 'contact';
-        await bot.sendMessage(
-            chatId,
-            '✅ Понял.\n\n' +
-            'Шаг 4 из 4.\n\n' +
-            'Оставь контакт для связи:\n\n' +
-            'Telegram username или номер телефона.'
+        await bot.sendMessage(chatId,
+            '✅ Понял.\n\nШаг 4 из 4.\n\n' +
+            'Оставь контакт для связи (Telegram или телефон):'
         );
         return;
     }
@@ -435,36 +557,55 @@ bot.on('message', async (msg) => {
     if (state.step === 'contact') {
         state.contact = text;
 
+        const appId = Date.now().toString().slice(-6);
         const fromName = msg.from.first_name || 'Не указано';
         const fromUsername = msg.from.username ? '@' + msg.from.username : 'без username';
 
+        const apps = loadApps();
+        apps.push({
+            id: appId,
+            userId: msg.from.id,
+            name: fromName,
+            username: fromUsername,
+            service: state.service,
+            desc: state.desc,
+            budget: state.budget,
+            contact: state.contact,
+            status: 'new',
+            created: new Date().toISOString()
+        });
+        saveApps(apps);
+
         const adminText =
-            '🔥 НОВАЯ ЗАЯВКА\n\n' +
-            '👤 Имя: ' + fromName + '\n' +
-            '📱 Telegram: ' + fromUsername + '\n' +
-            '🆔 ID: ' + msg.from.id + '\n\n' +
-            '🛠 Услуга: ' + state.service + '\n\n' +
-            '📝 Описание:\n' + state.desc + '\n\n' +
-            '💰 Бюджет:\n' + state.budget + '\n\n' +
-            '📞 Контакт:\n' + state.contact;
+            '🔥 НОВАЯ ЗАЯВКА #' + appId + '\n\n' +
+            '👤 ' + fromName + '\n' +
+            '📱 ' + fromUsername + '\n' +
+            '🆔 ' + msg.from.id + '\n\n' +
+            '🛠 ' + state.service + '\n' +
+            '📝 ' + state.desc + '\n' +
+            '💰 ' + state.budget + '\n' +
+            '📞 ' + state.contact;
+
+        const keyboard = {
+            inline_keyboard: [
+                [{ text: '🔨 В работу', callback_data: 'status_work_' + appId }],
+                [{ text: '✅ Выполнено', callback_data: 'status_done_' + appId }],
+                [{ text: '💬 Написать', url: 'https://t.me/' + (msg.from.username || '') }]
+            ]
+        };
 
         try {
-            await bot.sendMessage(ADMIN_ID, adminText);
-            await bot.sendMessage(
-                chatId,
-                '🎉 Заявка успешно отправлена!\n\n' +
-                'Спасибо! Мы получили твою заявку и свяжемся с тобой в ближайшее время.',
+            await bot.sendMessage(ADMIN_ID, adminText, { reply_markup: keyboard });
+            await bot.sendMessage(chatId,
+                '🎉 ЗАЯВКА ОТПРАВЛЕНА!\n\n' +
+                'Номер: #' + appId + '\n' +
+                'Мы свяжемся с тобой в ближайшее время.',
                 mainMenu
             );
             delete userStates[chatId];
-        } catch (error) {
-            console.log('Ошибка отправки заявки:', error.message);
-            await bot.sendMessage(
-                chatId,
-                '❌ Не удалось отправить заявку.\n\n' +
-                'Попробуй ещё раз или свяжись с нами напрямую.',
-                mainMenu
-            );
+        } catch (e) {
+            console.log('Ошибка:', e.message);
+            bot.sendMessage(chatId, '❌ Ошибка. Попробуй ещё раз.', mainMenu);
         }
         return;
     }
