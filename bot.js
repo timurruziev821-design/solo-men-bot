@@ -22,7 +22,7 @@ http.createServer((req, res) => {
 
 const TOKEN = process.env.BOT_TOKEN;
 const CRYPTOBOT_TOKEN = process.env.CRYPTOBOT_TOKEN;
-const ADMIN_ID = 8447147405;
+const SUPER_ADMIN_ID = 8447147405;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 console.log('Solo_Men Studios Bot запущен!');
@@ -38,6 +38,7 @@ const REFS_FILE = 'referrals.json';
 const TICKETS_FILE = 'tickets.json';
 const LANG_FILE = 'langs.json';
 const LOG_FILE = 'log.json';
+const ADMINS_FILE = 'admins.json';
 
 function loadJson(file) {
     try {
@@ -77,9 +78,30 @@ function saveLangs(l) { saveJson(LANG_FILE, l); }
 function addLog(action, admin) {
     const logs = loadJson(LOG_FILE) || [];
     logs.push({ action, admin: admin || 'Админ', time: new Date().toISOString() });
-    if (logs.length > 100) logs = logs.slice(-100);
+    if (logs.length > 200) logs = logs.slice(-200);
     saveJson(LOG_FILE, logs);
 }
+
+// =========================
+// СИСТЕМА АДМИНОВ
+// =========================
+
+function loadAdmins() {
+    let admins = loadJson(ADMINS_FILE);
+    if (!admins || !Array.isArray(admins)) {
+        admins = [SUPER_ADMIN_ID];
+        saveJson(ADMINS_FILE, admins);
+    }
+    if (!admins.includes(SUPER_ADMIN_ID)) {
+        admins.push(SUPER_ADMIN_ID);
+        saveJson(ADMINS_FILE, admins);
+    }
+    return admins;
+}
+
+function saveAdmins(admins) { saveJson(ADMINS_FILE, admins); }
+function isAdmin(userId) { return loadAdmins().includes(userId); }
+function isSuperAdmin(userId) { return userId === SUPER_ADMIN_ID; }
 
 // =========================
 // ЯЗЫКИ
@@ -87,61 +109,61 @@ function addLog(action, admin) {
 
 const TEXTS = {
     ru: {
-        welcome: '🏛 Solo_Men Studios\n\nПривет, {name}!\n\nМы создаём сайты, Telegram-ботов, приложения и дизайн в премиум-стиле.\n\n⚡ Быстро. Качественно. Красиво.\n\nВыбирай, что тебя интересует:',
-        sites: '🌐 РАЗРАБОТКА САЙТОВ\n\n• Лендинги\n• Многостраничные\n• Интернет-магазины\n• Корпоративные\n\n💰 от 5 000 ₽\n⏱ 3–7 дней',
-        bots: '🤖 РАЗРАБОТКА БОТОВ\n\n• Telegram\n• Discord\n• Для магазинов\n• Помощники\n\n💰 от 7 000 ₽\n⏱ 5–10 дней',
-        apps: '📱 ПРИЛОЖЕНИЯ\n\n• Android\n• PWA\n• Web\n\n💰 от 30 000 ₽\n⏱ 2–4 недели',
-        design: '🎨 ДИЗАЙН\n\n• Логотипы\n• Баннеры\n• Обложки\n• Презентации\n\n💰 от 5 000 ₽\n⏱ 1–5 дней',
-        price: '💰 ПРАЙС-ЛИСТ\n\n🌐 Сайты — от 5 000 ₽\n🤖 Боты — от 7 000 ₽\n📱 Приложения — от 30 000 ₽\n🎨 Дизайн — от 5 000 ₽\n\n💳 USDT / TON',
-        portfolio: '💼 НАШИ РАБОТЫ\n\n📱 Solo_Men Messenger\nsolomessenger.netlify.app\n\n🏛 Solo_Men Studios\nsozdaniesaitovbotovbtdsolomen.netlify.app\n\n🪙 BobraCoin',
-        contact: '📞 СВЯЗАТЬСЯ\n\n👤 @Elohimon\n👤 @K_S_1430\n\n📧 bobratoken@gmail.com\n📢 @BobraCoin',
-        faq: '❓ FAQ\n\n💰 Сайт от 5к, бот от 7к, приложение от 30к.\n⏱ Сайт 3-7 дней, бот 5-10 дней.\n💳 USDT/TON, предоплата 50%.',
-        about: '🏛 SOLO_MEN STUDIOS\n\nСтудия разработки из Дагестана.\n\nОснователь: Тимур (Solo_Men).\n\n✨ Делаем технологии красиво.',
-        menuBtn: '🏠 Главное меню.',
-        orderStep1: '📋 ЗАЯВКА\n\nШаг 1 из 4.\n\nЧто нужно: сайт, бот, приложение, дизайн?\n\n/cancel — отмена',
-        orderStep2: '✅ Шаг 2 из 4.\n\nОпиши подробнее:',
-        orderStep3: '✅ Шаг 3 из 4.\n\nБюджет?\n\n• до 10 000\n• 10 000–30 000\n• 30 000–50 000\n• более 50 000\n• не знаю',
-        orderStep4: '✅ Шаг 4 из 4.\n\nКонтакт (Telegram или телефон):',
-        orderDone: '🎉 ЗАЯВКА #{id} ОТПРАВЛЕНА!\n\nМы свяжемся с тобой.',
-        cancelled: '❌ Отменено.',
+        welcome: '🏛 <b>Solo_Men Studios</b>\n\n👋 Привет, {name}!\n\nМы создаём <b>сайты</b>, <b>Telegram-ботов</b>, <b>приложения</b> и <b>дизайн</b> в премиум-стиле.\n\n⚡ Быстро\n💎 Качественно\n🎨 Красиво\n\n<i>Выбирай, что тебя интересует:</i>',
+        sites: '🌐 <b>РАЗРАБОТКА САЙТОВ</b>\n\n┣ Лендинги\n┣ Многостраничные сайты\n┣ Интернет-магазины\n┗ Корпоративные\n\n💰 <b>Цена:</b> от 5 000 ₽\n⏱ <b>Срок:</b> 3–7 дней\n\n📦 <b>Что входит:</b>\n┣ Дизайн\n┣ Вёрстка\n┣ Адаптив под телефон\n┣ Хостинг + домен\n┗ Обучение',
+        bots: '🤖 <b>РАЗРАБОТКА БОТОВ</b>\n\n┣ Telegram-боты\n┣ Discord-боты\n┣ Боты для магазинов\n┗ Боты-помощники\n\n💰 <b>Цена:</b> от 7 000 ₽\n⏱ <b>Срок:</b> 5–10 дней',
+        apps: '📱 <b>ПРИЛОЖЕНИЯ</b>\n\n┣ Android-приложения\n┣ PWA\n┗ Web-приложения\n\n💰 <b>Цена:</b> от 30 000 ₽\n⏱ <b>Срок:</b> 2–4 недели',
+        design: '🎨 <b>ДИЗАЙН</b>\n\n┣ Логотипы\n┣ Баннеры\n┣ Обложки\n┗ Презентации\n\n💰 <b>Цена:</b> от 5 000 ₽\n⏱ <b>Срок:</b> 1–5 дней',
+        price: '💰 <b>ПРАЙС-ЛИСТ</b>\n\n━━━━━━━━━━━━━━\n🌐 Сайты — <b>от 5 000 ₽</b>\n🤖 Боты — <b>от 7 000 ₽</b>\n📱 Приложения — <b>от 30 000 ₽</b>\n🎨 Дизайн — <b>от 5 000 ₽</b>\n━━━━━━━━━━━━━━\n\n💳 <b>Оплата:</b> USDT / TON\n📅 <b>Предоплата:</b> 50%',
+        portfolio: '💼 <b>НАШИ РАБОТЫ</b>\n\n━━━━━━━━━━━━━━\n📱 <b>Solo_Men Messenger</b>\n<i>solomessenger.netlify.app</i>\n\n🏛 <b>Solo_Men Studios</b>\n<i>sozdaniesaitovbotovbtdsolomen.netlify.app</i>\n\n🪙 <b>BobraCoin</b>\n<i>Мем-коин на Solana</i>\n━━━━━━━━━━━━━━',
+        contact: '📞 <b>СВЯЗАТЬСЯ С НАМИ</b>\n\n👤 <b>Основатель:</b> @Elohimon\n👤 <b>Менеджер:</b> @K_S_1430\n\n📧 <b>Email:</b> bobratoken@gmail.com\n📢 <b>Канал:</b> @BobraCoin',
+        faq: '❓ <b>ЧАСТЫЕ ВОПРОСЫ</b>\n\n💰 <b>Сколько стоит?</b>\nСайт от 5к, бот от 7к, приложение от 30к.\n\n⏱ <b>Как быстро?</b>\nСайт 3-7 дней, бот 5-10 дней.\n\n💳 <b>Как оплатить?</b>\nUSDT или TON. Предоплата 50%.',
+        about: '🏛 <b>SOLO_MEN STUDIOS</b>\n\nМолодая студия разработки из Дагестана.\n\n👤 <b>Основатель:</b> Тимур (Solo_Men)\n\n🎯 <b>Создаём:</b>\n┣ Сайты\n┣ Telegram-ботов\n┣ Приложения\n┗ Дизайн\n\n✨ <i>Делаем технологии красиво.</i>',
+        menuBtn: '🏠 <b>Главное меню</b>',
+        orderStep1: '📋 <b>ОФОРМЛЕНИЕ ЗАЯВКИ</b>\n\n━━━━━━━━━━━━━━\n<b>Шаг 1 из 4</b>\n━━━━━━━━━━━━━━\n\nЧто нужно сделать?\n\nНапиши:\n• сайт\n• бот\n• приложение\n• дизайн\n\n/cancel — отмена',
+        orderStep2: '✅ <b>Отлично!</b>\n\n━━━━━━━━━━━━━━\n<b>Шаг 2 из 4</b>\n━━━━━━━━━━━━━━\n\nОпиши подробнее что нужно:',
+        orderStep3: '✅ <b>Записал!</b>\n\n━━━━━━━━━━━━━━\n<b>Шаг 3 из 4</b>\n━━━━━━━━━━━━━━\n\n💰 Какой примерный бюджет?\n\n• до 10 000\n• 10 000–30 000\n• 30 000–50 000\n• более 50 000\n• не знаю',
+        orderStep4: '✅ <b>Понял!</b>\n\n━━━━━━━━━━━━━━\n<b>Шаг 4 из 4</b>\n━━━━━━━━━━━━━━\n\n📞 Оставь контакт (Telegram или телефон):',
+        orderDone: '🎉 <b>ЗАЯВКА #{id} ОТПРАВЛЕНА!</b>\n\nМы свяжемся с тобой в ближайшее время.\n\n💚 Спасибо что выбрал Solo_Men Studios!',
+        cancelled: '❌ <b>Отменено.</b>',
         noActiveOrder: 'Нет активной заявки.',
-        promoEnter: '🎁 Введи промокод:\n\n/cancel — отмена',
-        promoOk: '🎉 ПРОМОКОД АКТИВИРОВАН!\n\n🎁 {code}\n💰 Скидка: {discount}%',
-        promoNotFound: '❌ Промокод не найден.',
-        supportAsk: '💬 Напиши свой вопрос — мы ответим в ближайшее время.\n\n/cancel — отмена',
-        supportSent: '✅ Сообщение отправлено! Мы ответим скоро.',
-        calcStep1: '🧮 КАЛЬКУЛЯТОР\n\nШаг 1 из 3.\n\nЧто нужно: сайт / бот / приложение / дизайн?\n\n/cancel — отмена',
-        calcStep2: '✅ Шаг 2 из 3.\n\nСложность проекта:\n\n• простой (1)\n• средний (2)\n• сложный (3)\n\nНапиши 1, 2 или 3',
-        calcStep3: '✅ Шаг 3 из 3.\n\nСрочность:\n\n• нет (1)\n• 3-5 дней (2)\n• 1-2 дня (3)\n\nНапиши 1, 2 или 3',
+        promoEnter: '🎁 <b>ВВОД ПРОМОКОДА</b>\n\nНапиши код:\n\n/cancel — отмена',
+        promoOk: '🎉 <b>ПРОМОКОД АКТИВИРОВАН!</b>\n\n🎁 Код: <b>{code}</b>\n💰 Скидка: <b>{discount}%</b>\n\nСкидка будет применена к заказу.',
+        promoNotFound: '❌ <b>Промокод не найден или неактивен.</b>',
+        supportAsk: '💬 <b>НАПИСАТЬ В ПОДДЕРЖКУ</b>\n\nОпиши свой вопрос — мы ответим в ближайшее время.\n\n/cancel — отмена',
+        supportSent: '✅ <b>Сообщение отправлено!</b>\n\nМы ответим тебе скоро 💚',
+        calcStep1: '🧮 <b>КАЛЬКУЛЯТОР СТОИМОСТИ</b>\n\n━━━━━━━━━━━━━━\n<b>Шаг 1 из 3</b>\n━━━━━━━━━━━━━━\n\nЧто нужно сделать?\n\nНапиши: сайт / бот / приложение / дизайн\n\n/cancel — отмена',
+        calcStep2: '✅ <b>Шаг 2 из 3</b>\n\n⚙️ Насколько сложный проект?\n\n• простой (1)\n• средний (2)\n• сложный (3)\n\nНапиши 1, 2 или 3',
+        calcStep3: '✅ <b>Шаг 3 из 3</b>\n\n⚡ Насколько срочно?\n\n• нет (1)\n• 3-5 дней (2)\n• 1-2 дня (3)\n\nНапиши 1, 2 или 3',
         langChoose: '🌐 Выбери язык / Choose language:'
     },
     en: {
-        welcome: '🏛 Solo_Men Studios\n\nHi, {name}!\n\nWe create websites, Telegram bots, apps and design in premium style.\n\n⚡ Fast. Quality. Beautiful.\n\nChoose what interests you:',
-        sites: '🌐 WEBSITE DEVELOPMENT\n\n• Landing pages\n• Multi-page\n• Online stores\n• Corporate\n\n💰 from 5 000 ₽\n⏱ 3-7 days',
-        bots: '🤖 BOT DEVELOPMENT\n\n• Telegram\n• Discord\n• For stores\n• Assistants\n\n💰 from 7 000 ₽\n⏱ 5-10 days',
-        apps: '📱 APPS\n\n• Android\n• PWA\n• Web\n\n💰 from 30 000 ₽\n⏱ 2-4 weeks',
-        design: '🎨 DESIGN\n\n• Logos\n• Banners\n• Covers\n• Presentations\n\n💰 from 5 000 ₽\n⏱ 1-5 days',
-        price: '💰 PRICE LIST\n\n🌐 Websites — from 5k\n🤖 Bots — from 7k\n📱 Apps — from 30k\n🎨 Design — from 5k\n\n💳 USDT / TON',
-        portfolio: '💼 OUR WORKS\n\n📱 Solo_Men Messenger\nsolomessenger.netlify.app\n\n🏛 Solo_Men Studios\nsozdaniesaitovbotovbtdsolomen.netlify.app\n\n🪙 BobraCoin',
-        contact: '📞 CONTACT\n\n👤 @Elohimon\n👤 @K_S_1430\n\n📧 bobratoken@gmail.com\n📢 @BobraCoin',
-        faq: '❓ FAQ\n\n💰 Website from 5k, bot from 7k, app from 30k.\n⏱ Website 3-7 days.\n💳 USDT/TON, 50% prepayment.',
-        about: '🏛 SOLO_MEN STUDIOS\n\nDevelopment studio from Dagestan.\n\nFounder: Timur (Solo_Men).\n\n✨ We make technologies beautiful.',
-        menuBtn: '🏠 Main menu.',
-        orderStep1: '📋 REQUEST\n\nStep 1 of 4.\n\nWhat: website, bot, app, design?\n\n/cancel — cancel',
-        orderStep2: '✅ Step 2 of 4.\n\nDescribe:',
-        orderStep3: '✅ Step 3 of 4.\n\nBudget?\n\n• up to 10k\n• 10k–30k\n• 30k–50k\n• more than 50k\n• not sure',
-        orderStep4: '✅ Step 4 of 4.\n\nContact (Telegram or phone):',
-        orderDone: '🎉 REQUEST #{id} SENT!\n\nWe will contact you.',
-        cancelled: '❌ Cancelled.',
+        welcome: '🏛 <b>Solo_Men Studios</b>\n\n👋 Hi, {name}!\n\nWe create <b>websites</b>, <b>Telegram bots</b>, <b>apps</b> and <b>design</b> in premium style.\n\n⚡ Fast\n💎 Quality\n🎨 Beautiful\n\n<i>Choose what interests you:</i>',
+        sites: '🌐 <b>WEBSITE DEVELOPMENT</b>\n\n┣ Landing pages\n┣ Multi-page sites\n┣ Online stores\n┗ Corporate sites\n\n💰 <b>Price:</b> from 5 000 ₽\n⏱ <b>Time:</b> 3-7 days',
+        bots: '🤖 <b>BOT DEVELOPMENT</b>\n\n┣ Telegram bots\n┣ Discord bots\n┣ Store bots\n┗ Assistant bots\n\n💰 <b>Price:</b> from 7 000 ₽\n⏱ <b>Time:</b> 5-10 days',
+        apps: '📱 <b>APPS</b>\n\n┣ Android apps\n┣ PWA\n┗ Web apps\n\n💰 <b>Price:</b> from 30 000 ₽\n⏱ <b>Time:</b> 2-4 weeks',
+        design: '🎨 <b>DESIGN</b>\n\n┣ Logos\n┣ Banners\n┣ Covers\n┗ Presentations\n\n💰 <b>Price:</b> from 5 000 ₽\n⏱ <b>Time:</b> 1-5 days',
+        price: '💰 <b>PRICE LIST</b>\n\n━━━━━━━━━━━━━━\n🌐 Websites — <b>from 5k</b>\n🤖 Bots — <b>from 7k</b>\n📱 Apps — <b>from 30k</b>\n🎨 Design — <b>from 5k</b>\n━━━━━━━━━━━━━━\n\n💳 USDT / TON\n📅 Prepayment 50%',
+        portfolio: '💼 <b>OUR WORKS</b>\n\n━━━━━━━━━━━━━━\n📱 <b>Solo_Men Messenger</b>\n<i>solomessenger.netlify.app</i>\n\n🏛 <b>Solo_Men Studios</b>\n<i>sozdaniesaitovbotovbtdsolomen.netlify.app</i>\n\n🪙 <b>BobraCoin</b>\n━━━━━━━━━━━━━━',
+        contact: '📞 <b>CONTACT US</b>\n\n👤 <b>Founder:</b> @Elohimon\n👤 <b>Manager:</b> @K_S_1430\n\n📧 bobratoken@gmail.com\n📢 @BobraCoin',
+        faq: '❓ <b>FAQ</b>\n\n💰 Website from 5k, bot from 7k, app from 30k.\n⏱ Website 3-7 days.\n💳 USDT/TON, 50% prepayment.',
+        about: '🏛 <b>SOLO_MEN STUDIOS</b>\n\nDevelopment studio from Dagestan.\n\n👤 <b>Founder:</b> Timur (Solo_Men)\n\n✨ <i>We make technologies beautiful.</i>',
+        menuBtn: '🏠 <b>Main menu</b>',
+        orderStep1: '📋 <b>REQUEST</b>\n\n━━━━━━━━━━━━━━\n<b>Step 1 of 4</b>\n━━━━━━━━━━━━━━\n\nWhat do you need?\n\n• website\n• bot\n• app\n• design\n\n/cancel — cancel',
+        orderStep2: '✅ <b>Step 2 of 4</b>\n\nDescribe:',
+        orderStep3: '✅ <b>Step 3 of 4</b>\n\nBudget?\n\n• up to 10k\n• 10k–30k\n• 30k–50k\n• more than 50k\n• not sure',
+        orderStep4: '✅ <b>Step 4 of 4</b>\n\nContact (Telegram or phone):',
+        orderDone: '🎉 <b>REQUEST #{id} SENT!</b>\n\nWe will contact you soon.',
+        cancelled: '❌ <b>Cancelled.</b>',
         noActiveOrder: 'No active request.',
-        promoEnter: '🎁 Enter promo code:\n\n/cancel — cancel',
-        promoOk: '🎉 PROMO ACTIVATED!\n\n🎁 {code}\n💰 Discount: {discount}%',
-        promoNotFound: '❌ Promo not found.',
-        supportAsk: '💬 Write your question:\n\n/cancel — cancel',
-        supportSent: '✅ Message sent! We will reply.',
-        calcStep1: '🧮 CALCULATOR\n\nStep 1 of 3.\n\nWhat: website / bot / app / design?\n\n/cancel — cancel',
-        calcStep2: '✅ Step 2 of 3.\n\nComplexity:\n\n• simple (1)\n• medium (2)\n• complex (3)\n\nSend 1, 2 or 3',
-        calcStep3: '✅ Step 3 of 3.\n\nUrgency:\n\n• no (1)\n• 3-5 days (2)\n• 1-2 days (3)\n\nSend 1, 2 or 3',
+        promoEnter: '🎁 <b>ENTER PROMO CODE</b>\n\nSend code:\n\n/cancel — cancel',
+        promoOk: '🎉 <b>PROMO ACTIVATED!</b>\n\n🎁 {code}\n💰 Discount: <b>{discount}%</b>',
+        promoNotFound: '❌ <b>Promo not found.</b>',
+        supportAsk: '💬 <b>CONTACT SUPPORT</b>\n\nWrite your question:\n\n/cancel — cancel',
+        supportSent: '✅ <b>Message sent!</b>',
+        calcStep1: '🧮 <b>CALCULATOR</b>\n\n<b>Step 1 of 3</b>\n\nWhat: website / bot / app / design?\n\n/cancel — cancel',
+        calcStep2: '✅ <b>Step 2 of 3</b>\n\nComplexity:\n\n• simple (1)\n• medium (2)\n• complex (3)\n\nSend 1, 2 or 3',
+        calcStep3: '✅ <b>Step 3 of 3</b>\n\nUrgency:\n\n• no (1)\n• 3-5 days (2)\n• 1-2 days (3)\n\nSend 1, 2 or 3',
         langChoose: '🌐 Choose language / Выбери язык:'
     }
 };
@@ -171,7 +193,6 @@ function t(userId, key, vars) {
 // =========================
 
 function mainMenu(userId) {
-    const isAdmin = userId === ADMIN_ID;
     const rows = [
         [{ text: '🌐 Сайты' }, { text: '🤖 Боты' }],
         [{ text: '📱 Приложения' }, { text: '🎨 Дизайн' }],
@@ -182,7 +203,7 @@ function mainMenu(userId) {
         [{ text: '👤 Профиль' }, { text: '🔗 Моя реф-ссылка' }],
         [{ text: '💬 Написать в поддержку' }, { text: '🌐 Язык / Language' }]
     ];
-    if (isAdmin) {
+    if (isAdmin(userId)) {
         rows.push([{ text: '👑 Админка' }]);
     }
     return { reply_markup: { keyboard: rows, resize_keyboard: true } };
@@ -200,7 +221,7 @@ bot.setMyCommands([
     { command: 'myref', description: '🔗 Моя реф-ссылка' },
     { command: 'cancel', description: '❌ Отменить' }
 ]);// =========================
-// АДМИН-ПАНЕЛЬ (через кнопки)
+// АДМИН-ПАНЕЛЬ
 // =========================
 
 function adminMenu() {
@@ -209,6 +230,7 @@ function adminMenu() {
             inline_keyboard: [
                 [{ text: '📋 Заявки', callback_data: 'admin_apps' }],
                 [{ text: '🎁 Промокоды', callback_data: 'admin_promos' }],
+                [{ text: '👥 Админы', callback_data: 'admin_admins' }],
                 [{ text: '📢 Рассылка', callback_data: 'admin_broadcast' }],
                 [{ text: '📊 Статистика', callback_data: 'admin_stats' }],
                 [{ text: '📜 Логи', callback_data: 'admin_logs' }],
@@ -232,14 +254,31 @@ function promosMenu() {
     };
 }
 
+function adminsMenu() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '➕ Добавить админа', callback_data: 'admin_add' }],
+                [{ text: '📋 Список админов', callback_data: 'admin_list' }],
+                [{ text: '🗑 Удалить админа', callback_data: 'admin_del_list' }],
+                [{ text: '⬅️ Назад', callback_data: 'admin_back' }]
+            ]
+        }
+    };
+}
+
+// =========================
+// /admin и кнопка Админка
+// =========================
+
 bot.onText(/^\/admin$/, (msg) => {
-    if (msg.chat.id !== ADMIN_ID) return;
-    bot.sendMessage(msg.chat.id, '👑 АДМИН-ПАНЕЛЬ\n\nВыбирай действие:', adminMenu());
+    if (!isAdmin(msg.chat.id)) return;
+    bot.sendMessage(msg.chat.id, '👑 <b>АДМИН-ПАНЕЛЬ</b>\n\n<i>Выбирай действие:</i>', { parse_mode: 'HTML', ...adminMenu() });
 });
 
 bot.onText(/^👑 Админка$/, (msg) => {
-    if (msg.chat.id !== ADMIN_ID) return;
-    bot.sendMessage(msg.chat.id, '👑 АДМИН-ПАНЕЛЬ\n\nВыбирай действие:', adminMenu());
+    if (!isAdmin(msg.chat.id)) return;
+    bot.sendMessage(msg.chat.id, '👑 <b>АДМИН-ПАНЕЛЬ</b>\n\n<i>Выбирай действие:</i>', { parse_mode: 'HTML', ...adminMenu() });
 });
 
 // =========================
@@ -253,17 +292,17 @@ bot.on('callback_query', async (query) => {
     const adminName = query.from.first_name || 'Админ';
 
     // =========================
-    // ЗАЯВКИ (список)
+    // ЗАЯВКИ
     // =========================
-    if (data === 'admin_apps' && chatId === ADMIN_ID) {
+    if (data === 'admin_apps' && isAdmin(chatId)) {
         const apps = loadApps();
         if (apps.length === 0) {
             bot.answerCallbackQuery(query.id, { text: 'Заявок нет' });
-            bot.sendMessage(chatId, '📭 Пока нет заявок.', adminMenu());
+            bot.sendMessage(chatId, '📭 <b>Пока нет заявок.</b>', { parse_mode: 'HTML', ...adminMenu() });
             return;
         }
         bot.answerCallbackQuery(query.id, { text: 'Заявки' });
-        bot.sendMessage(chatId, '📋 ЗАЯВОК: ' + apps.length);
+        bot.sendMessage(chatId, '📋 <b>ЗАЯВОК: ' + apps.length + '</b>', { parse_mode: 'HTML' });
 
         const last = apps.slice(-5).reverse();
         for (const app of last) {
@@ -271,13 +310,18 @@ bot.on('callback_query', async (query) => {
             const statusText = app.status === 'new' ? 'Новая' : (app.status === 'work' ? 'В работе' : (app.status === 'done' ? 'Выполнено' : 'Отклонено'));
 
             const text =
-                statusEmoji + ' ЗАЯВКА #' + app.id + '\n\n' +
+                statusEmoji + ' <b>ЗАЯВКА #' + app.id + '</b>\n\n' +
+                '━━━━━━━━━━━━━━\n' +
                 '👤 ' + app.name + '\n' +
                 '📱 ' + app.username + '\n' +
-                '🛠 ' + app.service + '\n' +
+                '🆔 <code>' + app.userId + '</code>\n' +
+                '━━━━━━━━━━━━━━\n' +
+                '🛠 <b>' + app.service + '</b>\n' +
+                '📝 ' + app.desc + '\n' +
                 '💰 ' + app.budget + '\n' +
-                '📞 ' + app.contact + '\n\n' +
-                '📊 ' + statusText;
+                '📞 ' + app.contact + '\n' +
+                '━━━━━━━━━━━━━━\n' +
+                '📊 <b>' + statusText + '</b>';
 
             const buttons = [];
             if (app.status === 'new' || app.status === 'work') {
@@ -293,15 +337,15 @@ bot.on('callback_query', async (query) => {
                 ]);
             }
 
-            bot.sendMessage(chatId, text, { reply_markup: { inline_keyboard: buttons } }).catch(() => {});
+            bot.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: buttons } }).catch(() => {});
         }
         return;
     }
 
     // =========================
-    // СТАТУСЫ ЗАЯВОК (кнопки исчезают)
+    // СТАТУСЫ ЗАЯВОК
     // =========================
-    if (data.startsWith('status_') && chatId === ADMIN_ID) {
+    if (data.startsWith('status_') && isAdmin(chatId)) {
         const parts = data.split('_');
         const action = parts[0] + '_' + parts[1];
         const appId = parts[2];
@@ -318,20 +362,22 @@ bot.on('callback_query', async (query) => {
             saveApps(apps);
 
             bot.editMessageText(
-                '🔨 ЗАЯВКА #' + appId + '\n\n' +
+                '🔨 <b>ЗАЯВКА #' + appId + '</b>\n\n' +
+                '━━━━━━━━━━━━━━\n' +
                 '👤 ' + app.name + '\n' +
                 '📱 ' + app.username + '\n' +
                 '🛠 ' + app.service + '\n' +
                 '💰 ' + app.budget + '\n' +
-                '📞 ' + app.contact + '\n\n' +
-                '📊 Статус: 🔨 В РАБОТЕ\n' +
+                '📞 ' + app.contact + '\n' +
+                '━━━━━━━━━━━━━━\n' +
+                '📊 <b>В РАБОТЕ</b>\n' +
                 '👤 Взял: ' + adminName + '\n' +
                 '🕐 ' + now,
-                { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [] } }
+                { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }
             ).catch(() => {});
 
             bot.answerCallbackQuery(query.id, { text: '🔨 В работе' });
-            bot.sendMessage(app.userId, '🔨 Твоя заявка #' + appId + ' принята в работу!').catch(() => {});
+            bot.sendMessage(app.userId, '🔨 <b>Твоя заявка #' + appId + ' принята в работу!</b>', { parse_mode: 'HTML' }).catch(() => {});
             addLog('Заявка #' + appId + ' → В работу', adminName);
 
         } else if (action === 'status_done') {
@@ -340,20 +386,22 @@ bot.on('callback_query', async (query) => {
             saveApps(apps);
 
             bot.editMessageText(
-                '✅ ЗАЯВКА #' + appId + '\n\n' +
+                '✅ <b>ЗАЯВКА #' + appId + '</b>\n\n' +
+                '━━━━━━━━━━━━━━\n' +
                 '👤 ' + app.name + '\n' +
                 '📱 ' + app.username + '\n' +
                 '🛠 ' + app.service + '\n' +
                 '💰 ' + app.budget + '\n' +
-                '📞 ' + app.contact + '\n\n' +
-                '📊 Статус: ✅ ВЫПОЛНЕНО\n' +
+                '📞 ' + app.contact + '\n' +
+                '━━━━━━━━━━━━━━\n' +
+                '📊 <b>ВЫПОЛНЕНО</b>\n' +
                 '👤 Выполнил: ' + adminName + '\n' +
                 '🕐 ' + now,
-                { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [] } }
+                { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }
             ).catch(() => {});
 
             bot.answerCallbackQuery(query.id, { text: '✅ Выполнено' });
-            bot.sendMessage(app.userId, '✅ Твоя заявка #' + appId + ' выполнена! Спасибо!').catch(() => {});
+            bot.sendMessage(app.userId, '✅ <b>Твоя заявка #' + appId + ' выполнена!</b>\n\n💚 Спасибо за заказ!', { parse_mode: 'HTML' }).catch(() => {});
             addLog('Заявка #' + appId + ' → Выполнено', adminName);
 
         } else if (action === 'status_reject') {
@@ -362,14 +410,14 @@ bot.on('callback_query', async (query) => {
             saveApps(apps);
 
             bot.editMessageText(
-                '❌ ЗАЯВКА #' + appId + '\n\n' +
+                '❌ <b>ЗАЯВКА #' + appId + '</b>\n\n' +
                 '👤 ' + app.name + '\n' +
                 '📱 ' + app.username + '\n' +
                 '🛠 ' + app.service + '\n\n' +
-                '📊 Статус: ❌ ОТКЛОНЕНО\n' +
+                '📊 <b>ОТКЛОНЕНО</b>\n' +
                 '👤 Отклонил: ' + adminName + '\n' +
                 '🕐 ' + now,
-                { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [] } }
+                { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }
             ).catch(() => {});
 
             bot.answerCallbackQuery(query.id, { text: '❌ Отклонено' });
@@ -381,31 +429,31 @@ bot.on('callback_query', async (query) => {
     // =========================
     // ОТВЕТИТЬ КЛИЕНТУ
     // =========================
-    if (data.startsWith('reply_') && chatId === ADMIN_ID) {
+    if (data.startsWith('reply_') && isAdmin(chatId)) {
         const clientId = data.replace('reply_', '');
-        userStates[ADMIN_ID] = { step: 'admin_reply', clientId: clientId };
+        userStates[chatId] = { step: 'admin_reply', clientId: clientId };
         bot.answerCallbackQuery(query.id, { text: 'Напиши ответ' });
-        bot.sendMessage(chatId, '💬 Напиши ответ клиенту (ID: ' + clientId + '):\n\n/cancel — отмена');
+        bot.sendMessage(chatId, '💬 <b>Напиши ответ клиенту</b> (ID: <code>' + clientId + '</code>):\n\n/cancel — отмена', { parse_mode: 'HTML' });
         return;
     }
 
     // =========================
     // ПРОМОКОДЫ
     // =========================
-    if (data === 'admin_promos' && chatId === ADMIN_ID) {
+    if (data === 'admin_promos' && isAdmin(chatId)) {
         bot.answerCallbackQuery(query.id, { text: 'Промокоды' });
-        bot.sendMessage(chatId, '🎁 УПРАВЛЕНИЕ ПРОМОКОДАМИ\n\nВыбирай действие:', promosMenu());
+        bot.sendMessage(chatId, '🎁 <b>УПРАВЛЕНИЕ ПРОМОКОДАМИ</b>', { parse_mode: 'HTML', ...promosMenu() });
         return;
     }
 
-    if (data === 'promo_create' && chatId === ADMIN_ID) {
-        userStates[ADMIN_ID] = { step: 'promo_code' };
+    if (data === 'promo_create' && isAdmin(chatId)) {
+        userStates[chatId] = { step: 'promo_code' };
         bot.answerCallbackQuery(query.id, { text: 'Создание' });
-        bot.sendMessage(chatId, '➕ СОЗДАНИЕ ПРОМОКОДА\n\nШаг 1 из 2.\n\nНапиши КОД промокода (например: BOBR10)\n\n/cancel — отмена');
+        bot.sendMessage(chatId, '➕ <b>СОЗДАНИЕ ПРОМОКОДА</b>\n\n<b>Шаг 1 из 2</b>\n\nНапиши КОД (например: BOBR10)\n\n/cancel — отмена', { parse_mode: 'HTML' });
         return;
     }
 
-    if (data === 'promo_list' && chatId === ADMIN_ID) {
+    if (data === 'promo_list' && isAdmin(chatId)) {
         const promos = loadPromos();
         const keys = Object.keys(promos);
         bot.answerCallbackQuery(query.id, { text: 'Список' });
@@ -413,15 +461,15 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, '📭 Нет промокодов.', promosMenu());
             return;
         }
-        let text = '🎁 ПРОМОКОДЫ\n\n';
+        let text = '🎁 <b>ПРОМОКОДЫ</b>\n\n━━━━━━━━━━━━━━\n';
         keys.forEach(c => {
-            text += '🔹 ' + c + ' — ' + promos[c].discount + '% (исп: ' + promos[c].uses + ')\n';
+            text += '🔹 <b>' + c + '</b> — ' + promos[c].discount + '% (исп: ' + promos[c].uses + ')\n';
         });
-        bot.sendMessage(chatId, text, promosMenu());
+        bot.sendMessage(chatId, text, { parse_mode: 'HTML', ...promosMenu() });
         return;
     }
 
-    if (data === 'promo_del_list' && chatId === ADMIN_ID) {
+    if (data === 'promo_del_list' && isAdmin(chatId)) {
         const promos = loadPromos();
         const keys = Object.keys(promos);
         bot.answerCallbackQuery(query.id, { text: 'Удаление' });
@@ -431,11 +479,11 @@ bot.on('callback_query', async (query) => {
         }
         const buttons = keys.map(c => [{ text: '🗑 ' + c + ' (' + promos[c].discount + '%)', callback_data: 'promo_del_' + c }]);
         buttons.push([{ text: '⬅️ Назад', callback_data: 'admin_promos' }]);
-        bot.sendMessage(chatId, '🗑 ВЫБЕРИ ПРОМОКОД ДЛЯ УДАЛЕНИЯ:', { reply_markup: { inline_keyboard: buttons } });
+        bot.sendMessage(chatId, '🗑 <b>ВЫБЕРИ ПРОМОКОД ДЛЯ УДАЛЕНИЯ:</b>', { parse_mode: 'HTML', reply_markup: { inline_keyboard: buttons } });
         return;
     }
 
-    if (data.startsWith('promo_del_') && chatId === ADMIN_ID) {
+    if (data.startsWith('promo_del_') && isAdmin(chatId)) {
         const code = data.replace('promo_del_', '');
         const promos = loadPromos();
         if (promos[code]) {
@@ -443,12 +491,12 @@ bot.on('callback_query', async (query) => {
             savePromos(promos);
             addLog('Промокод удалён: ' + code, adminName);
             bot.answerCallbackQuery(query.id, { text: 'Удалён' });
-            bot.sendMessage(chatId, '✅ Промокод ' + code + ' удалён.\n👤 ' + adminName, promosMenu());
+            bot.sendMessage(chatId, '✅ Промокод <b>' + code + '</b> удалён.\n👤 ' + adminName, { parse_mode: 'HTML', ...promosMenu() });
         }
         return;
     }
 
-    if (data === 'promo_edit_list' && chatId === ADMIN_ID) {
+    if (data === 'promo_edit_list' && isAdmin(chatId)) {
         const promos = loadPromos();
         const keys = Object.keys(promos);
         bot.answerCallbackQuery(query.id, { text: 'Редактирование' });
@@ -458,32 +506,107 @@ bot.on('callback_query', async (query) => {
         }
         const buttons = keys.map(c => [{ text: '✏️ ' + c + ' (' + promos[c].discount + '%)', callback_data: 'promo_edit_' + c }]);
         buttons.push([{ text: '⬅️ Назад', callback_data: 'admin_promos' }]);
-        bot.sendMessage(chatId, '✏️ ВЫБЕРИ ПРОМОКОД ДЛЯ РЕДАКТИРОВАНИЯ:', { reply_markup: { inline_keyboard: buttons } });
+        bot.sendMessage(chatId, '✏️ <b>ВЫБЕРИ ПРОМОКОД ДЛЯ РЕДАКТИРОВАНИЯ:</b>', { parse_mode: 'HTML', reply_markup: { inline_keyboard: buttons } });
         return;
     }
 
-    if (data.startsWith('promo_edit_') && chatId === ADMIN_ID) {
+    if (data.startsWith('promo_edit_') && isAdmin(chatId)) {
         const code = data.replace('promo_edit_', '');
-        userStates[ADMIN_ID] = { step: 'promo_edit_discount', promoCode: code };
+        userStates[chatId] = { step: 'promo_edit_discount', promoCode: code };
         bot.answerCallbackQuery(query.id, { text: 'Редактирование' });
-        bot.sendMessage(chatId, '✏️ РЕДАКТИРОВАНИЕ ' + code + '\n\nНапиши новую скидку в % (1–100):\n\n/cancel — отмена');
+        bot.sendMessage(chatId, '✏️ <b>РЕДАКТИРОВАНИЕ ' + code + '</b>\n\nНапиши новую скидку в % (1–100):\n\n/cancel — отмена', { parse_mode: 'HTML' });
+        return;
+    }
+
+    // =========================
+    // АДМИНЫ
+    // =========================
+    if (data === 'admin_admins' && isAdmin(chatId)) {
+        bot.answerCallbackQuery(query.id, { text: 'Админы' });
+        bot.sendMessage(chatId, '👥 <b>УПРАВЛЕНИЕ АДМИНАМИ</b>\n\n<i>Только супер-админ может добавлять/удалять:</i>', { parse_mode: 'HTML', ...adminsMenu() });
+        return;
+    }
+
+    if (data === 'admin_list' && isAdmin(chatId)) {
+        const admins = loadAdmins();
+        bot.answerCallbackQuery(query.id, { text: 'Список' });
+        let text = '👥 <b>СПИСОК АДМИНОВ</b> (' + admins.length + '):\n\n━━━━━━━━━━━━━━\n';
+        admins.forEach((id, i) => {
+            const mark = id === SUPER_ADMIN_ID ? ' 👑 (супер)' : '';
+            text += (i + 1) + '. 🆔 <code>' + id + '</code>' + mark + '\n';
+        });
+        bot.sendMessage(chatId, text, { parse_mode: 'HTML', ...adminsMenu() });
+        return;
+    }
+
+    if (data === 'admin_add' && isAdmin(chatId)) {
+        if (!isSuperAdmin(chatId)) {
+            bot.answerCallbackQuery(query.id, { text: '❌ Только супер-админ' });
+            return;
+        }
+        userStates[chatId] = { step: 'admin_add_id' };
+        bot.answerCallbackQuery(query.id, { text: 'Добавление' });
+        bot.sendMessage(chatId,
+            '➕ <b>ДОБАВЛЕНИЕ АДМИНА</b>\n\n' +
+            'Отправь ID пользователя (только цифры).\n\n' +
+            '⚠️ <i>Username не подойдёт — только цифры!</i>\n' +
+            'Как узнать: пусть человек напишет @userinfobot в Telegram.\n\n' +
+            '/cancel — отмена',
+            { parse_mode: 'HTML' }
+        );
+        return;
+    }
+
+    if (data === 'admin_del_list' && isAdmin(chatId)) {
+        if (!isSuperAdmin(chatId)) {
+            bot.answerCallbackQuery(query.id, { text: '❌ Только супер-админ' });
+            return;
+        }
+        const admins = loadAdmins().filter(id => id !== SUPER_ADMIN_ID);
+        bot.answerCallbackQuery(query.id, { text: 'Удаление' });
+        if (admins.length === 0) {
+            bot.sendMessage(chatId, '📭 Нет других админов (кроме тебя).', adminsMenu());
+            return;
+        }
+        const buttons = admins.map(id => [{ text: '🗑 ' + id, callback_data: 'admin_del_' + id }]);
+        buttons.push([{ text: '⬅️ Назад', callback_data: 'admin_admins' }]);
+        bot.sendMessage(chatId, '🗑 <b>ВЫБЕРИ АДМИНА ДЛЯ УДАЛЕНИЯ:</b>', { parse_mode: 'HTML', reply_markup: { inline_keyboard: buttons } });
+        return;
+    }
+
+    if (data.startsWith('admin_del_') && isAdmin(chatId)) {
+        if (!isSuperAdmin(chatId)) {
+            bot.answerCallbackQuery(query.id, { text: '❌ Только супер-админ' });
+            return;
+        }
+        const delId = parseInt(data.replace('admin_del_', ''));
+        let admins = loadAdmins();
+        if (admins.includes(delId) && delId !== SUPER_ADMIN_ID) {
+            admins = admins.filter(id => id !== delId);
+            saveAdmins(admins);
+            addLog('Админ удалён: ' + delId, adminName);
+            bot.answerCallbackQuery(query.id, { text: 'Удалён' });
+            bot.sendMessage(chatId, '✅ Админ <code>' + delId + '</code> удалён.', { parse_mode: 'HTML', ...adminsMenu() });
+        } else {
+            bot.answerCallbackQuery(query.id, { text: '❌ Нельзя удалить' });
+        }
         return;
     }
 
     // =========================
     // РАССЫЛКА
     // =========================
-    if (data === 'admin_broadcast' && chatId === ADMIN_ID) {
-        userStates[ADMIN_ID] = { step: 'broadcast_text' };
+    if (data === 'admin_broadcast' && isAdmin(chatId)) {
+        userStates[chatId] = { step: 'broadcast_text' };
         bot.answerCallbackQuery(query.id, { text: 'Рассылка' });
-        bot.sendMessage(chatId, '📢 РАССЫЛКА\n\nНапиши текст:\n\n/cancel — отмена');
+        bot.sendMessage(chatId, '📢 <b>РАССЫЛКА</b>\n\nНапиши текст:\n\n/cancel — отмена', { parse_mode: 'HTML' });
         return;
     }
 
     // =========================
     // СТАТИСТИКА
     // =========================
-    if (data === 'admin_stats' && chatId === ADMIN_ID) {
+    if (data === 'admin_stats' && isAdmin(chatId)) {
         const users = loadUsers();
         const apps = loadApps();
         const promos = loadPromos();
@@ -491,18 +614,31 @@ bot.on('callback_query', async (query) => {
         const n = apps.filter(a => a.status === 'new').length;
         const w = apps.filter(a => a.status === 'work').length;
         const d = apps.filter(a => a.status === 'done').length;
+        const r = apps.filter(a => a.status === 'rejected').length;
         const openTickets = tickets.filter(t => t.status === 'open').length;
+        const logs = loadJson(LOG_FILE) || [];
+
+        let logText = '';
+        if (logs.length > 0) {
+            logText = '\n\n📜 <b>Последние действия:</b>\n';
+            logs.slice(-5).reverse().forEach(l => {
+                logText += '• ' + l.admin + ' — ' + l.action + '\n';
+            });
+        }
 
         bot.answerCallbackQuery(query.id, { text: 'Статистика' });
         bot.sendMessage(chatId,
-            '📊 СТАТИСТИКА\n\n' +
-            '👥 Пользователей: ' + users.length + '\n' +
-            '📋 Заявок: ' + apps.length + '\n' +
-            '   🆕 ' + n + ' | 🔨 ' + w + ' | ✅ ' + d + '\n' +
-            '🎁 Промокодов: ' + Object.keys(promos).length + '\n' +
-            '💬 Открытых тикетов: ' + openTickets + '\n' +
-            '📅 ' + new Date().toLocaleDateString('ru-RU'),
-            adminMenu()
+            '📊 <b>СТАТИСТИКА SOLO_MEN</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '👥 Пользователей: <b>' + users.length + '</b>\n' +
+            '📋 Заявок: <b>' + apps.length + '</b>\n' +
+            '   🆕 ' + n + ' | 🔨 ' + w + ' | ✅ ' + d + ' | ❌ ' + r + '\n' +
+            '🎁 Промокодов: <b>' + Object.keys(promos).length + '</b>\n' +
+            '💬 Открытых тикетов: <b>' + openTickets + '</b>\n' +
+            '👑 Админов: <b>' + loadAdmins().length + '</b>\n' +
+            '📅 ' + new Date().toLocaleDateString('ru-RU') +
+            logText,
+            { parse_mode: 'HTML', ...adminMenu() }
         );
         return;
     }
@@ -510,19 +646,20 @@ bot.on('callback_query', async (query) => {
     // =========================
     // ЛОГИ
     // =========================
-    if (data === 'admin_logs' && chatId === ADMIN_ID) {
+    if (data === 'admin_logs' && isAdmin(chatId)) {
         const logs = loadJson(LOG_FILE) || [];
         bot.answerCallbackQuery(query.id, { text: 'Логи' });
         if (logs.length === 0) {
             bot.sendMessage(chatId, '📭 Логов нет.', adminMenu());
             return;
         }
-        let text = '📜 ПОСЛЕДНИЕ 20 ДЕЙСТВИЙ:\n\n';
+        let text = '📜 <b>ПОСЛЕДНИЕ 20 ДЕЙСТВИЙ:</b>\n\n━━━━━━━━━━━━━━\n';
         logs.slice(-20).reverse().forEach(l => {
-            text += '• ' + l.admin + ' — ' + l.action + '\n' +
-                '  🕐 ' + new Date(l.time).toLocaleString('ru-RU') + '\n\n';
+            text += '👤 <b>' + l.admin + '</b>\n' +
+                '📌 ' + l.action + '\n' +
+                '🕐 ' + new Date(l.time).toLocaleString('ru-RU') + '\n\n';
         });
-        bot.sendMessage(chatId, text, adminMenu());
+        bot.sendMessage(chatId, text, { parse_mode: 'HTML', ...adminMenu() });
         return;
     }
 
@@ -537,9 +674,10 @@ bot.on('callback_query', async (query) => {
 
     if (data === 'admin_back') {
         bot.answerCallbackQuery(query.id, { text: 'Назад' });
-        bot.editMessageText('👑 АДМИН-ПАНЕЛЬ\n\nВыбирай действие:', {
+        bot.editMessageText('👑 <b>АДМИН-ПАНЕЛЬ</b>\n\n<i>Выбирай действие:</i>', {
             chat_id: chatId,
             message_id: query.message.message_id,
+            parse_mode: 'HTML',
             reply_markup: adminMenu().reply_markup
         }).catch(() => {});
         return;
@@ -551,20 +689,20 @@ bot.on('callback_query', async (query) => {
     if (data === 'lang_ru') {
         setLang(userId, 'ru');
         bot.answerCallbackQuery(query.id, { text: '🇷🇺 Русский' });
-        bot.sendMessage(chatId, '✅ Язык: Русский', mainMenu(userId));
+        bot.sendMessage(chatId, '✅ <b>Язык:</b> Русский', { parse_mode: 'HTML', ...mainMenu(userId) });
         return;
     }
     if (data === 'lang_en') {
         setLang(userId, 'en');
         bot.answerCallbackQuery(query.id, { text: '🇬🇧 English' });
-        bot.sendMessage(chatId, '✅ Language: English', mainMenu(userId));
+        bot.sendMessage(chatId, '✅ <b>Language:</b> English', { parse_mode: 'HTML', ...mainMenu(userId) });
         return;
     }
 
     // =========================
     // ЗАКРЫТИЕ ТИКЕТА
     // =========================
-    if (data.startsWith('ticket_close_') && chatId === ADMIN_ID) {
+    if (data.startsWith('ticket_close_') && isAdmin(chatId)) {
         const ticketId = data.replace('ticket_close_', '');
         const tickets = loadTickets();
         const ticket = tickets.find(t => t.id === ticketId);
@@ -573,7 +711,7 @@ bot.on('callback_query', async (query) => {
             saveTickets(tickets);
             addLog('Тикет закрыт: #' + ticketId, adminName);
             bot.answerCallbackQuery(query.id, { text: 'Закрыт' });
-            bot.sendMessage(chatId, '✅ Тикет #' + ticketId + ' закрыт.\n👤 ' + adminName);
+            bot.sendMessage(chatId, '✅ Тикет <b>#' + ticketId + '</b> закрыт.\n👤 ' + adminName, { parse_mode: 'HTML' });
         }
         return;
     }
@@ -600,16 +738,21 @@ bot.onText(/^\/start(.*)$/, (msg, match) => {
                 refs[referrerId] = ref;
                 saveRefs(refs);
                 bot.sendMessage(referrerId,
-                    '🎉 ПО ТВОЕЙ ССЫЛКЕ ПРИШЁЛ ДРУГ!\n\n👤 ID: ' + userId + '\n💰 Тебе скидка 5%!\n👥 Всего: ' + ref.invited.length
+                    '🎉 <b>ПО ТВОЕЙ ССЫЛКЕ ПРИШЁЛ ДРУГ!</b>\n\n' +
+                    '👤 ID: <code>' + userId + '</code>\n' +
+                    '💰 Тебе скидка <b>5%</b>!\n' +
+                    '👥 Всего: <b>' + ref.invited.length + '</b>',
+                    { parse_mode: 'HTML' }
                 ).catch(() => {});
-                bot.sendMessage(chatId, '🎁 Ты пришёл по реферальной ссылке! Скидка 5% на первый заказ.');
+                bot.sendMessage(chatId, '🎁 <b>Ты пришёл по реферальной ссылке!</b>\n\nСкидка <b>5%</b> на первый заказ.', { parse_mode: 'HTML' });
             }
         }
     }
 
     const langs = loadLangs();
     if (!langs[userId]) {
-        bot.sendMessage(chatId, '🌐 Выбери язык / Choose language:', {
+        bot.sendMessage(chatId, '🌐 <b>Выбери язык / Choose language:</b>', {
+            parse_mode: 'HTML',
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '🇷🇺 Русский', callback_data: 'lang_ru' }],
@@ -620,7 +763,7 @@ bot.onText(/^\/start(.*)$/, (msg, match) => {
         return;
     }
 
-    bot.sendMessage(chatId, t(userId, 'welcome', { name: name }), mainMenu(userId));
+    bot.sendMessage(chatId, t(userId, 'welcome', { name: name }), { parse_mode: 'HTML', ...mainMenu(userId) });
 });
 
 // =========================
@@ -649,15 +792,17 @@ function showProfile(chatId, userId, firstName, username) {
     const doneA = apps.filter(a => a.status === 'done').length;
 
     bot.sendMessage(chatId,
-        '👤 ТВОЙ ПРОФИЛЬ\n\n' +
-        '📛 ' + name + '\n' +
+        '👤 <b>ТВОЙ ПРОФИЛЬ</b>\n\n' +
+        '━━━━━━━━━━━━━━\n' +
+        '📛 <b>' + name + '</b>\n' +
         '📱 ' + userTag + '\n' +
-        '🆔 ' + userId + '\n\n' +
-        '📋 Заявок: ' + apps.length + '\n' +
+        '🆔 <code>' + userId + '</code>\n' +
+        '━━━━━━━━━━━━━━\n' +
+        '📋 Заявок: <b>' + apps.length + '</b>\n' +
         '   🆕 ' + newA + ' | 🔨 ' + workA + ' | ✅ ' + doneA + '\n\n' +
-        '👥 Приглашено: ' + myRef.invited.length + '\n\n' +
-        '🔗 Реф-ссылка:\nt.me/SoloMenStudiosBot?start=' + myRef.code,
-        backMenu(userId)
+        '👥 Приглашено: <b>' + myRef.invited.length + '</b>\n\n' +
+        '🔗 <b>Реф-ссылка:</b>\n<code>t.me/SoloMenStudiosBot?start=' + myRef.code + '</code>',
+        { parse_mode: 'HTML', ...backMenu(userId) }
     );
 }
 
@@ -679,11 +824,14 @@ function showRef(chatId, userId) {
     if (!refs[userId]) { refs[userId] = myRef; saveRefs(refs); }
 
     bot.sendMessage(chatId,
-        '🔗 ТВОЯ РЕФЕРАЛЬНАЯ ССЫЛКА\n\n' +
-        't.me/SoloMenStudiosBot?start=' + myRef.code + '\n\n' +
-        'Отправь другу. Когда он зайдёт — ты получишь скидку 5%.\n\n' +
-        '👥 Уже приглашено: ' + myRef.invited.length,
-        backMenu(userId)
+        '🔗 <b>ТВОЯ РЕФЕРАЛЬНАЯ ССЫЛКА</b>\n\n' +
+        '━━━━━━━━━━━━━━\n' +
+        '<code>t.me/SoloMenStudiosBot?start=' + myRef.code + '</code>\n' +
+        '━━━━━━━━━━━━━━\n\n' +
+        '📌 Отправь другу.\n' +
+        '🎁 Когда он зайдёт — <b>ты получишь скидку 5%</b>.\n\n' +
+        '👥 Уже приглашено: <b>' + myRef.invited.length + '</b>',
+        { parse_mode: 'HTML', ...backMenu(userId) }
     );
 }
 
@@ -692,7 +840,8 @@ function showRef(chatId, userId) {
 // =========================
 
 bot.onText(/^🌐 Язык \/ Language$/, (msg) => {
-    bot.sendMessage(msg.chat.id, '🌐 Выбери язык / Choose language:', {
+    bot.sendMessage(msg.chat.id, '🌐 <b>Выбери язык / Choose language:</b>', {
+        parse_mode: 'HTML',
         reply_markup: {
             inline_keyboard: [
                 [{ text: '🇷🇺 Русский', callback_data: 'lang_ru' }],
@@ -709,7 +858,7 @@ bot.onText(/^🌐 Язык \/ Language$/, (msg) => {
 bot.onText(/^💬 Написать в поддержку$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'support_msg' };
-    bot.sendMessage(chatId, t(chatId, 'supportAsk'), backMenu(chatId));
+    bot.sendMessage(chatId, t(chatId, 'supportAsk'), { parse_mode: 'HTML', ...backMenu(chatId) });
 });
 
 // =========================
@@ -718,12 +867,12 @@ bot.onText(/^💬 Написать в поддержку$/, (msg) => {
 
 bot.onText(/^🏠 Главное меню\.$/, (msg) => {
     delete userStates[msg.chat.id];
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'menuBtn'), mainMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'menuBtn'), { parse_mode: 'HTML', ...mainMenu(msg.chat.id) });
 });
 
 bot.onText(/^⬅️ Назад$/, (msg) => {
     delete userStates[msg.chat.id];
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'menuBtn'), mainMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'menuBtn'), { parse_mode: 'HTML', ...mainMenu(msg.chat.id) });
 });
 
 // =========================
@@ -733,7 +882,7 @@ bot.onText(/^⬅️ Назад$/, (msg) => {
 bot.onText(/^🎁 Ввести промокод$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'promo' };
-    bot.sendMessage(chatId, t(chatId, 'promoEnter'), backMenu(chatId));
+    bot.sendMessage(chatId, t(chatId, 'promoEnter'), { parse_mode: 'HTML', ...backMenu(chatId) });
 });
 
 // =========================
@@ -741,49 +890,49 @@ bot.onText(/^🎁 Ввести промокод$/, (msg) => {
 // =========================
 
 bot.onText(/^🌐 Сайты$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'sites'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'sites'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^🤖 Боты$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'bots'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'bots'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^📱 Приложения$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'apps'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'apps'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^🎨 Дизайн$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'design'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'design'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^💰 Прайс-лист$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'price'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'price'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^💼 Портфолио$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'portfolio'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'portfolio'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^📞 Связаться$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'contact'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'contact'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^❓ FAQ$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'faq'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'faq'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 bot.onText(/^🏛 О студии$/, (msg) => {
-    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'about'), backMenu(msg.chat.id));
+    bot.sendMessage(msg.chat.id, t(msg.chat.id, 'about'), { parse_mode: 'HTML', ...backMenu(msg.chat.id) });
 });
 
 // =========================
-// 🧮 КАЛЬКУЛЯТОР
+// КАЛЬКУЛЯТОР
 // =========================
 
 bot.onText(/^🧮 Калькулятор$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'calc_type' };
-    bot.sendMessage(chatId, t(chatId, 'calcStep1'), backMenu(chatId));
+    bot.sendMessage(chatId, t(chatId, 'calcStep1'), { parse_mode: 'HTML', ...backMenu(chatId) });
 });
 
 // =========================
@@ -793,16 +942,16 @@ bot.onText(/^🧮 Калькулятор$/, (msg) => {
 bot.onText(/^📋 Оставить заявку$/, (msg) => {
     const chatId = msg.chat.id;
     userStates[chatId] = { step: 'service' };
-    bot.sendMessage(chatId, t(chatId, 'orderStep1'));
+    bot.sendMessage(chatId, t(chatId, 'orderStep1'), { parse_mode: 'HTML' });
 });
 
 bot.onText(/^\/cancel$/, (msg) => {
     const chatId = msg.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        bot.sendMessage(chatId, t(chatId, 'cancelled'), mainMenu(chatId));
+        bot.sendMessage(chatId, t(chatId, 'cancelled'), { parse_mode: 'HTML', ...mainMenu(chatId) });
     } else {
-        bot.sendMessage(chatId, t(chatId, 'noActiveOrder'), mainMenu(chatId));
+        bot.sendMessage(chatId, t(chatId, 'noActiveOrder'), { parse_mode: 'HTML', ...mainMenu(chatId) });
     }
 });// =========================
 // CRYPTOBOT — ОПЛАТА
@@ -885,14 +1034,14 @@ bot.on('message', async (msg) => {
     // ПРОМОКОД
     // =========================
     if (state.step === 'promo') {
-        const code = text.toUpperCase();
+        const code = text.toUpperCase().trim();
         const promos = loadPromos();
         if (promos[code] && promos[code].active) {
             promos[code].uses++;
             savePromos(promos);
-            bot.sendMessage(chatId, t(chatId, 'promoOk', { code: code, discount: promos[code].discount }), mainMenu(chatId));
+            bot.sendMessage(chatId, t(chatId, 'promoOk', { code: code, discount: promos[code].discount }), { parse_mode: 'HTML', ...mainMenu(chatId) });
         } else {
-            bot.sendMessage(chatId, t(chatId, 'promoNotFound'), mainMenu(chatId));
+            bot.sendMessage(chatId, t(chatId, 'promoNotFound'), { parse_mode: 'HTML', ...mainMenu(chatId) });
         }
         delete userStates[chatId];
         return;
@@ -912,10 +1061,13 @@ bot.on('message', async (msg) => {
         saveTickets(tickets);
 
         const adminText =
-            '💬 СООБЩЕНИЕ В ПОДДЕРЖКУ #' + ticketId + '\n\n' +
+            '💬 <b>НОВОЕ СООБЩЕНИЕ В ПОДДЕРЖКУ #' + ticketId + '</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
             '👤 ' + (msg.from.first_name || 'Клиент') + '\n' +
             '📱 ' + (msg.from.username ? '@' + msg.from.username : 'без username') + '\n' +
-            '🆔 ' + userId + '\n\n📝 ' + text;
+            '🆔 <code>' + userId + '</code>\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '📝 ' + text;
 
         const keyboard = {
             inline_keyboard: [
@@ -924,8 +1076,8 @@ bot.on('message', async (msg) => {
             ]
         };
 
-        bot.sendMessage(ADMIN_ID, adminText, { reply_markup: keyboard }).catch(() => {});
-        bot.sendMessage(chatId, t(chatId, 'supportSent'), mainMenu(chatId));
+        bot.sendMessage(SUPER_ADMIN_ID, adminText, { parse_mode: 'HTML', reply_markup: keyboard }).catch(() => {});
+        bot.sendMessage(chatId, t(chatId, 'supportSent'), { parse_mode: 'HTML', ...mainMenu(chatId) });
         delete userStates[chatId];
         return;
     }
@@ -942,7 +1094,7 @@ bot.on('message', async (msg) => {
         }
         state.calcType = type;
         state.step = 'calc_complexity';
-        bot.sendMessage(chatId, t(chatId, 'calcStep2'));
+        bot.sendMessage(chatId, t(chatId, 'calcStep2'), { parse_mode: 'HTML' });
         return;
     }
 
@@ -955,7 +1107,7 @@ bot.on('message', async (msg) => {
         }
         state.calcComplexity = complexity;
         state.step = 'calc_urgent';
-        bot.sendMessage(chatId, t(chatId, 'calcStep3'));
+        bot.sendMessage(chatId, t(chatId, 'calcStep3'), { parse_mode: 'HTML' });
         return;
     }
 
@@ -980,16 +1132,20 @@ bot.on('message', async (msg) => {
         if (urgent === 3) price *= 1.7;
         price = Math.round(price / 500) * 500;
 
+        const urgencyText = urgent === 1 ? 'Обычная' : (urgent === 2 ? '3-5 дней' : '1-2 дня');
+
         bot.sendMessage(chatId,
-            '🧮 РАСЧЁТ СТОИМОСТИ\n\n' +
-            '📋 Услуга: ' + state.calcType + '\n' +
-            '⚙️ Сложность: ' + state.calcComplexity + '/3\n' +
-            '⚡ Срочность: ' + urgent + '/3\n\n' +
-            '💰 ПРИМЕРНАЯ СТОИМОСТЬ:\n' +
-            '💵 ' + price.toLocaleString('ru-RU') + ' ₽\n\n' +
-            'Точную цену скажем после обсуждения ТЗ.\n\n' +
-            'Хочешь оставить заявку? Нажми «📋 Оставить заявку».',
-            mainMenu(chatId)
+            '🧮 <b>РАСЧЁТ СТОИМОСТИ</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '📋 Услуга: <b>' + state.calcType + '</b>\n' +
+            '⚙️ Сложность: <b>' + state.calcComplexity + '/3</b>\n' +
+            '⚡ Срочность: <b>' + urgencyText + '</b>\n' +
+            '━━━━━━━━━━━━━━\n\n' +
+            '💰 <b>ПРИМЕРНАЯ СТОИМОСТЬ:</b>\n' +
+            '💵 <b>' + price.toLocaleString('ru-RU') + ' ₽</b>\n\n' +
+            '📌 Точную цену скажем после обсуждения ТЗ.\n\n' +
+            '🎯 Хочешь оставить заявку? Нажми <b>«📋 Оставить заявку»</b>.',
+            { parse_mode: 'HTML', ...mainMenu(chatId) }
         );
         delete userStates[chatId];
         return;
@@ -1001,25 +1157,27 @@ bot.on('message', async (msg) => {
     if (state.step === 'service') {
         state.service = text;
         state.step = 'desc';
-        bot.sendMessage(chatId, t(chatId, 'orderStep2'));
+        bot.sendMessage(chatId, t(chatId, 'orderStep2'), { parse_mode: 'HTML' });
         return;
     }
 
     if (state.step === 'desc') {
         state.desc = text;
         state.step = 'budget';
-        bot.sendMessage(chatId, t(chatId, 'orderStep3'));
+        bot.sendMessage(chatId, t(chatId, 'orderStep3'), { parse_mode: 'HTML' });
         return;
     }
 
     if (state.step === 'budget') {
         state.budget = text;
         state.step = 'contact';
-        bot.sendMessage(chatId, t(chatId, 'orderStep4'));
+        bot.sendMessage(chatId, t(chatId, 'orderStep4'), { parse_mode: 'HTML' });
         return;
     }
 
+    // =========================
     // ЗАЯВКА — ФИНАЛ
+    // =========================
     if (state.step === 'contact') {
         state.contact = text;
         const appId = Date.now().toString().slice(-6);
@@ -1036,9 +1194,18 @@ bot.on('message', async (msg) => {
         saveApps(apps);
 
         const adminText =
-            '🔥 НОВАЯ ЗАЯВКА #' + appId + '\n\n' +
-            '👤 ' + fromName + '\n📱 ' + fromUsername + '\n🆔 ' + userId + '\n\n' +
-            '🛠 ' + state.service + '\n📝 ' + state.desc + '\n💰 ' + state.budget + '\n📞 ' + state.contact;
+            '🔥 <b>НОВАЯ ЗАЯВКА #' + appId + '</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '👤 ' + fromName + '\n' +
+            '📱 ' + fromUsername + '\n' +
+            '🆔 <code>' + userId + '</code>\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '🛠 <b>' + state.service + '</b>\n' +
+            '📝 ' + state.desc + '\n' +
+            '💰 ' + state.budget + '\n' +
+            '📞 ' + state.contact + '\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '📊 <b>НОВАЯ</b>';
 
         const keyboard = {
             inline_keyboard: [
@@ -1052,22 +1219,33 @@ bot.on('message', async (msg) => {
         };
 
         try {
-            await bot.sendMessage(ADMIN_ID, adminText, { reply_markup: keyboard });
+            await bot.sendMessage(SUPER_ADMIN_ID, adminText, { parse_mode: 'HTML', reply_markup: keyboard });
 
             const amount = getPriceForService(state.service);
             if (amount > 0 && CRYPTOBOT_TOKEN) {
                 const invoice = await createInvoice(amount, 'Заявка #' + appId + ' — ' + state.service);
                 if (invoice && invoice.bot_invoice_url) {
                     await bot.sendMessage(chatId,
-                        '🎉 ЗАЯВКА #' + appId + ' ОТПРАВЛЕНА!\n\n💳 Оплата: ' + amount + ' USDT\n\nНажми кнопку чтобы оплатить:',
-                        { reply_markup: { inline_keyboard: [[{ text: '💳 Оплатить ' + amount + ' USDT', url: invoice.bot_invoice_url }]] } }
+                        '🎉 <b>ЗАЯВКА #' + appId + ' ОТПРАВЛЕНА!</b>\n\n' +
+                        '━━━━━━━━━━━━━━\n' +
+                        '💳 <b>Оплата:</b> ' + amount + ' USDT\n' +
+                        '━━━━━━━━━━━━━━\n\n' +
+                        '👇 Нажми кнопку чтобы оплатить:',
+                        {
+                            parse_mode: 'HTML',
+                            reply_markup: {
+                                inline_keyboard: [[
+                                    { text: '💳 Оплатить ' + amount + ' USDT', url: invoice.bot_invoice_url }
+                                ]]
+                            }
+                        }
                     );
-                    await bot.sendMessage(chatId, t(chatId, 'menuBtn'), mainMenu(chatId));
+                    await bot.sendMessage(chatId, t(chatId, 'menuBtn'), { parse_mode: 'HTML', ...mainMenu(chatId) });
                 } else {
-                    await bot.sendMessage(chatId, t(chatId, 'orderDone', { id: appId }), mainMenu(chatId));
+                    await bot.sendMessage(chatId, t(chatId, 'orderDone', { id: appId }), { parse_mode: 'HTML', ...mainMenu(chatId) });
                 }
             } else {
-                await bot.sendMessage(chatId, t(chatId, 'orderDone', { id: appId }), mainMenu(chatId));
+                await bot.sendMessage(chatId, t(chatId, 'orderDone', { id: appId }), { parse_mode: 'HTML', ...mainMenu(chatId) });
             }
             delete userStates[chatId];
         } catch (e) {
@@ -1075,16 +1253,20 @@ bot.on('message', async (msg) => {
             bot.sendMessage(chatId, '❌ Ошибка. Попробуй ещё раз.', mainMenu(chatId));
         }
         return;
-    }
-
-    // =========================
+    }    // =========================
     // АДМИН — ОТВЕТ КЛИЕНТУ
     // =========================
-    if (state.step === 'admin_reply' && chatId === ADMIN_ID) {
+    if (state.step === 'admin_reply' && isAdmin(chatId)) {
         const clientId = state.clientId;
         try {
-            await bot.sendMessage(clientId, '💬 ОТВЕТ ОТ SOLO_MEN STUDIOS\n\n' + text);
-            bot.sendMessage(chatId, '✅ Отправлено клиенту ' + clientId, adminMenu());
+            await bot.sendMessage(clientId,
+                '💬 <b>ОТВЕТ ОТ SOLO_MEN STUDIOS</b>\n\n' +
+                '━━━━━━━━━━━━━━\n' +
+                text + '\n' +
+                '━━━━━━━━━━━━━━',
+                { parse_mode: 'HTML' }
+            );
+            bot.sendMessage(chatId, '✅ <b>Отправлено клиенту</b> <code>' + clientId + '</code>', { parse_mode: 'HTML', ...adminMenu() });
             addLog('Ответ клиенту ' + clientId, msg.from.first_name || 'Админ');
         } catch (e) {
             bot.sendMessage(chatId, '❌ Не удалось: ' + e.message);
@@ -1096,54 +1278,76 @@ bot.on('message', async (msg) => {
     // =========================
     // АДМИН — РАССЫЛКА
     // =========================
-    if (state.step === 'broadcast_text' && chatId === ADMIN_ID) {
+    if (state.step === 'broadcast_text' && isAdmin(chatId)) {
         const allUsers = loadUsers();
-        await bot.sendMessage(chatId, '📢 Рассылка на ' + allUsers.length + '...');
+        await bot.sendMessage(chatId, '📢 <b>Рассылка на ' + allUsers.length + ' пользователей...</b>', { parse_mode: 'HTML' });
         let sent = 0, failed = 0;
-        for (const userId of allUsers) {
+        for (const uId of allUsers) {
             try {
-                await bot.sendMessage(userId, text);
+                await bot.sendMessage(uId, text, { parse_mode: 'HTML' });
                 sent++;
                 await new Promise(r => setTimeout(r, 1500));
             } catch (e) { failed++; }
         }
         addLog('Рассылка: ' + sent + '/' + allUsers.length, msg.from.first_name || 'Админ');
-        bot.sendMessage(chatId, '✅ Отправлено: ' + sent + '\n❌ Ошибок: ' + failed, adminMenu());
+        bot.sendMessage(chatId,
+            '✅ <b>РАССЫЛКА ЗАВЕРШЕНА</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '📨 Отправлено: <b>' + sent + '</b>\n' +
+            '❌ Ошибок: <b>' + failed + '</b>\n' +
+            '👥 Всего: <b>' + allUsers.length + '</b>',
+            { parse_mode: 'HTML', ...adminMenu() }
+        );
         delete userStates[chatId];
         return;
     }
 
     // =========================
-    // АДМИН — СОЗДАНИЕ ПРОМОКОДА
+    // АДМИН — СОЗДАНИЕ ПРОМОКОДА (шаг 1: код)
     // =========================
-    if (state.step === 'promo_code' && chatId === ADMIN_ID) {
+    if (state.step === 'promo_code' && isAdmin(chatId)) {
         const code = text.toUpperCase().replace(/\s/g, '');
+        if (code.length < 3 || code.length > 20) {
+            bot.sendMessage(chatId, '❌ Код должен быть 3-20 символов. Попробуй снова:');
+            return;
+        }
         state.promoCode = code;
         state.step = 'promo_discount';
-        bot.sendMessage(chatId, '➕ Шаг 2 из 2.\n\nНапиши скидку в % (1–100):');
+        bot.sendMessage(chatId, '➕ <b>Шаг 2 из 2</b>\n\nНапиши скидку в % (1–100):', { parse_mode: 'HTML' });
         return;
     }
 
-    if (state.step === 'promo_discount' && chatId === ADMIN_ID) {
+    // АДМИН — скидка промокода (шаг 2)
+    if (state.step === 'promo_discount' && isAdmin(chatId)) {
         const discount = parseInt(text);
         if (!discount || discount < 1 || discount > 100) {
-            bot.sendMessage(chatId, '❌ Введи число 1–100.');
+            bot.sendMessage(chatId, '❌ Введи число от 1 до 100.');
             return;
         }
         const promos = loadPromos();
         if (promos[state.promoCode]) {
-            bot.sendMessage(chatId, '❌ Промокод уже есть.', promosMenu());
+            bot.sendMessage(chatId, '❌ Промокод с таким кодом уже существует.', promosMenu());
             delete userStates[chatId];
             return;
         }
         promos[state.promoCode] = {
-            discount, created: new Date().toISOString(),
+            discount,
+            created: new Date().toISOString(),
             createdBy: msg.from.first_name || 'Админ',
-            uses: 0, active: true
+            uses: 0,
+            active: true
         };
         savePromos(promos);
         addLog('Промокод создан: ' + state.promoCode + ' (' + discount + '%)', msg.from.first_name || 'Админ');
-        bot.sendMessage(chatId, '✅ ПРОМОКОД СОЗДАН\n\n🎁 ' + state.promoCode + '\n💰 Скидка: ' + discount + '%', promosMenu());
+        bot.sendMessage(chatId,
+            '✅ <b>ПРОМОКОД СОЗДАН</b>\n\n' +
+            '━━━━━━━━━━━━━━\n' +
+            '🎁 Код: <b>' + state.promoCode + '</b>\n' +
+            '💰 Скидка: <b>' + discount + '%</b>\n' +
+            '👤 Создал: ' + (msg.from.first_name || 'Админ') + '\n' +
+            '━━━━━━━━━━━━━━',
+            { parse_mode: 'HTML', ...promosMenu() }
+        );
         delete userStates[chatId];
         return;
     }
@@ -1151,10 +1355,10 @@ bot.on('message', async (msg) => {
     // =========================
     // АДМИН — РЕДАКТИРОВАНИЕ ПРОМОКОДА
     // =========================
-    if (state.step === 'promo_edit_discount' && chatId === ADMIN_ID) {
+    if (state.step === 'promo_edit_discount' && isAdmin(chatId)) {
         const discount = parseInt(text);
         if (!discount || discount < 1 || discount > 100) {
-            bot.sendMessage(chatId, '❌ Введи число 1–100.');
+            bot.sendMessage(chatId, '❌ Введи число от 1 до 100.');
             return;
         }
         const promos = loadPromos();
@@ -1162,10 +1366,48 @@ bot.on('message', async (msg) => {
             promos[state.promoCode].discount = discount;
             savePromos(promos);
             addLog('Промокод ' + state.promoCode + ' → ' + discount + '%', msg.from.first_name || 'Админ');
-            bot.sendMessage(chatId, '✅ Промокод обновлён → ' + discount + '%', promosMenu());
+            bot.sendMessage(chatId,
+                '✅ <b>ПРОМОКОД ОБНОВЛЁН</b>\n\n' +
+                '🎁 ' + state.promoCode + ' → <b>' + discount + '%</b>\n' +
+                '👤 ' + (msg.from.first_name || 'Админ'),
+                { parse_mode: 'HTML', ...promosMenu() }
+            );
         } else {
-            bot.sendMessage(chatId, '❌ Не найден.', promosMenu());
+            bot.sendMessage(chatId, '❌ Промокод не найден.', promosMenu());
         }
+        delete userStates[chatId];
+        return;
+    }
+
+    // =========================
+    // АДМИН — ДОБАВЛЕНИЕ ID АДМИНА
+    // =========================
+    if (state.step === 'admin_add_id' && isAdmin(chatId)) {
+        if (!isSuperAdmin(chatId)) {
+            bot.sendMessage(chatId, '❌ Только супер-админ может добавлять.');
+            delete userStates[chatId];
+            return;
+        }
+        const newId = parseInt(text.trim());
+        if (!newId || isNaN(newId) || newId < 100000) {
+            bot.sendMessage(chatId, '❌ Введи корректный ID (только цифры, от 100000).');
+            return;
+        }
+        const admins = loadAdmins();
+        if (admins.includes(newId)) {
+            bot.sendMessage(chatId, '❌ Этот ID уже админ.', adminsMenu());
+            delete userStates[chatId];
+            return;
+        }
+        admins.push(newId);
+        saveAdmins(admins);
+        addLog('Админ добавлен: ' + newId, msg.from.first_name || 'Супер-админ');
+        bot.sendMessage(chatId,
+            '✅ <b>АДМИН ДОБАВЛЕН</b>\n\n' +
+            '🆔 <code>' + newId + '</code>\n\n' +
+            '📌 Теперь у него есть доступ к <b>👑 Админке</b>.',
+            { parse_mode: 'HTML', ...adminsMenu() }
+        );
         delete userStates[chatId];
         return;
     }
